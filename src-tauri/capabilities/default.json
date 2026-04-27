@@ -9,6 +9,12 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
     "core:window:allow-start-dragging",
-    "core:window:allow-set-always-on-top"
+    "core:window:allow-set-always-on-top",
+    "store:allow-get",
+    "store:allow-set",
+    "store:allow-load",
+    "store:allow-save",
+    "store:allow-delete",
+    "store:allow-clear"
   ]
 }
