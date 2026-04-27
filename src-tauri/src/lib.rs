@@ -5,7 +5,7 @@ use std::{
     thread,
     time::Duration,
 };
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use tauri_plugin_store::StoreExt;
 
 const STORE_FILE: &str = "clipboard_history.json";
@@ -180,7 +180,7 @@ pub fn run() {
             delete_clip,
             update_clip
         ])
-        .setup(|app| {
+        .setup(move |app| {
             let app_handle = app.handle().clone();
             let last = Arc::clone(&last_text);
             start_clipboard_watcher(app_handle, last);
