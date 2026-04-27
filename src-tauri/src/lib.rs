@@ -6,7 +6,11 @@ use std::{
     thread,
     time::Duration,
 };
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Emitter, Manager, WindowEvent,
+};
 use tauri_plugin_store::StoreExt;
 
 /// Shared state to let the frontend tell the watcher to ignore
@@ -157,6 +161,15 @@ fn get_image_base64(app: AppHandle, hash: String) -> Result<String, String> {
         }
     }
     Err("Image non trouvée".into())
+}
+
+#[tauri::command]
+fn start_screen_capture() -> Result<(), String> {
+    std::process::Command::new("cmd")
+        .args(["/c", "start", "ms-screenclip:"])
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 fn rgb_to_hue(r: f32, g: f32, b: f32) -> f32 {
@@ -347,14 +360,55 @@ pub fn run() {
             reorder_clip,
             open_file_or_url,
             open_in_paint,
-            get_image_base64
+            get_image_base64,
+            start_screen_capture
         ])
         .setup(move |app| {
             let app_handle = app.handle().clone();
             let last = Arc::clone(&last_text);
             let sup = Arc::clone(&suppress);
             start_clipboard_watcher(app_handle, last, sup);
+
+            let quit_i = MenuItem::with_id(app, "quit", "Quitter", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&quit_i])?;
+
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .on_menu_event(|app, event| {
+                    if event.id.as_ref() == "quit" {
+                        app.exit(0);
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let is_visible = window.is_visible().unwrap_or(false);
+                            if is_visible {
+                                window.hide().unwrap();
+                            } else {
+                                window.show().unwrap();
+                                window.set_focus().unwrap();
+                            }
+                        }
+                    }
+                })
+                .build(app)?;
+
             Ok(())
+        })
+        .on_window_event(|window, event| match event {
+            WindowEvent::CloseRequested { api, .. } => {
+                window.hide().unwrap();
+                api.prevent_close();
+            }
+            _ => {}
         })
         .run(tauri::generate_context!())
         .expect("erreur lors du lancement de Tauri");

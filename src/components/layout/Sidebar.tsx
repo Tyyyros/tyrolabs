@@ -1,4 +1,4 @@
-import { useState, type ComponentType } from "react";
+import { useState, useEffect, useRef, type ComponentType } from "react";
 import { useTheme } from "../../lib/theme";
 import { C } from "../../lib/colors";
 import { Ic, type IcProps } from "../icons";
@@ -59,6 +59,140 @@ function SbBtn({ Icon, label, active, onClick }: SbBtnProps) {
   );
 }
 
+function CaptureBtn({ onCapture }: { onCapture: () => void }) {
+  const [hov, setHov] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const theme = useTheme();
+  const timerRef = useRef<number | null>(null);
+
+  const startCapture = () => {
+    setCountdown(null);
+    if (timerRef.current) clearInterval(timerRef.current);
+    onCapture();
+    setShowMenu(false);
+  };
+
+  const startDelayed = () => {
+    setShowMenu(false);
+    setCountdown(5);
+    timerRef.current = window.setInterval(() => {
+      setCountdown((c) => {
+        if (c === 1) {
+          clearInterval(timerRef.current!);
+          onCapture();
+          return null;
+        }
+        return c ? c - 1 : null;
+      });
+    }, 1000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
+  return (
+    <div 
+      style={{ position: "relative" }}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => { setHov(false); setShowMenu(false); }}
+    >
+      <button
+        onClick={() => (countdown === null ? startCapture() : null)}
+        title="Capture d'écran"
+        style={{
+          width: "100%",
+          height: 46,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: hov ? "rgba(255,255,255,0.035)" : "transparent",
+          border: "none",
+          cursor: countdown === null ? "pointer" : "default",
+          color: hov ? C.t1 : "#A1A1AA",
+          transition: "all 0.12s",
+          position: "relative",
+          flexShrink: 0,
+        }}
+      >
+        {countdown !== null ? (
+          <span style={{ fontSize: 16, fontWeight: "bold", color: C.accent }}>{countdown}</span>
+        ) : (
+          <Ic.Camera width={SB_ICON} height={SB_ICON} strokeWidth={theme.iconStroke} />
+        )}
+
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowMenu(!showMenu);
+          }}
+          style={{
+            position: "absolute",
+            right: 4,
+            bottom: 4,
+            opacity: hov ? 0.6 : 0,
+            transition: "opacity 0.2s",
+            cursor: "pointer",
+          }}
+        >
+          <Ic.ChevD width={8} height={8} />
+        </div>
+      </button>
+
+      {showMenu && (
+        <div
+          style={{
+            position: "absolute",
+            left: 54,
+            bottom: 0,
+            background: "#0F0F12",
+            border: `1px solid ${C.border}`,
+            borderRadius: 6,
+            padding: 4,
+            zIndex: 1000,
+            width: 140,
+            boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5)",
+          }}
+        >
+          <div
+            onClick={startCapture}
+            style={{
+              padding: "6px 10px",
+              fontSize: 12,
+              cursor: "pointer",
+              borderRadius: 4,
+              color: C.t1,
+              transition: "background 0.1s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            Capture normale
+          </div>
+          <div
+            onClick={startDelayed}
+            style={{
+              padding: "6px 10px",
+              fontSize: 12,
+              cursor: "pointer",
+              borderRadius: 4,
+              color: C.t1,
+              transition: "background 0.1s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            Différée (5s)
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface Props {
   activeTab: TabId;
   onTab: (id: TabId) => void;
@@ -97,7 +231,7 @@ export function Sidebar({ activeTab, onTab, onSettings, onSystem, onCapture }: P
         )}
       </div>
       <div style={{ borderTop: `1px solid ${C.border}`, paddingBottom: 4, paddingTop: 4 }}>
-        <SbBtn Icon={Ic.Camera} label="Capture" onClick={onCapture} />
+        <CaptureBtn onCapture={onCapture} />
         <SbBtn Icon={Ic.Settings} label="Réglages" onClick={onSettings} />
         <SbBtn Icon={Ic.Cpu} label="Système" onClick={onSystem} />
       </div>
