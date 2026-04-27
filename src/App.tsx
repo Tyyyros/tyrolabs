@@ -35,6 +35,22 @@ interface EditorState {
 
 const TOAST_MS = 2200;
 
+async function copyToClipboard(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // Fallback for environments where clipboard API is restricted
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+  }
+}
+
 export default function App() {
   const [themeName, setThemeName] = useState<ThemeId>("command");
   const [activeTab, setActiveTab] = useState<TabId>("text");
@@ -51,14 +67,13 @@ export default function App() {
   const [linkClips, setLinkClips] = useState<LinkClip[]>(INIT_LINKS);
 
   const theme = THEMES[themeName];
-  const gridCols = 4; // hard-coded en plan A — sera repris depuis Settings en plan B
+  const gridCols = 4;
 
   const fire = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(""), TOAST_MS);
   };
 
-  // Close ctx menu on global click
   useEffect(() => {
     const h = () => setCtx(null);
     document.addEventListener("click", h);
@@ -79,6 +94,23 @@ export default function App() {
   };
 
   const handleDoubleClick = (id: number, type: ItemType) => {
+    const clip =
+      type === "text"
+        ? textClips.find((c) => c.id === id)
+        : type === "image"
+          ? imageClips.find((c) => c.id === id)
+          : linkClips.find((c) => c.id === id);
+
+    if (clip) {
+      const text =
+        type === "text"
+          ? (clip as TextClip).text
+          : type === "image"
+            ? (clip as ImageClip).hash
+            : (clip as LinkClip).url;
+      copyToClipboard(text).catch(console.error);
+    }
+
     const lift = <T extends { id: number }>(setter: React.Dispatch<React.SetStateAction<T[]>>) => {
       setter((prev) => {
         const it = prev.find((c) => c.id === id);
@@ -93,6 +125,13 @@ export default function App() {
 
   const buildHandlers = (item: AnyClip, itemType: ItemType): CtxHandlers => ({
     copy: () => {
+      const text =
+        itemType === "text"
+          ? (item as TextClip).text
+          : itemType === "image"
+            ? (item as ImageClip).hash
+            : (item as LinkClip).url;
+      copyToClipboard(text).catch(console.error);
       fire("Copié ✓");
       setCtx(null);
     },
@@ -123,6 +162,13 @@ export default function App() {
       setCtx(null);
     },
     copyPlain: () => {
+      const text =
+        itemType === "text"
+          ? (item as TextClip).text
+          : itemType === "link"
+            ? (item as LinkClip).url
+            : (item as ImageClip).hash;
+      copyToClipboard(text).catch(console.error);
       fire("Texte brut copié ✓");
       setCtx(null);
     },
