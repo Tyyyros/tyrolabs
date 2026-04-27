@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh auth *)",
+      "PowerShell(gh auth status)",
+      "PowerShell(Get-Command gh -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source; where.exe gh 2>$null; Get-ChildItem \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\",\"$env:LOCALAPPDATA\\\\Programs\\\\GitHub CLI\\\\gh.exe\" -ErrorAction SilentlyContinue | Select-Object FullName)",
+      "PowerShell($paths = @\\(\"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\", \"C:\\\\Program Files \\(x86\\)\\\\GitHub CLI\\\\gh.exe\", \"$env:LOCALAPPDATA\\\\Programs\\\\GitHub CLI\\\\gh.exe\"\\); foreach \\($p in $paths\\) { if \\(Test-Path $p\\) { Write-Output $p } }; Get-ChildItem -Path \"$env:LOCALAPPDATA\\\\Microsoft\\\\WinGet\" -Recurse -Filter gh.exe -ErrorAction SilentlyContinue | Select-Object -First 3 -ExpandProperty FullName)",
+      "PowerShell($env:Path = \"$env:Path;C:\\\\Program Files\\\\GitHub CLI\"; gh repo list --limit 100 --json name,visibility,isFork,isArchived,primaryLanguage,stargazerCount,updatedAt,pushedAt,description | ConvertFrom-Json | Sort-Object pushedAt -Descending | ForEach-Object { $lang = if \\($_.primaryLanguage\\) { $_.primaryLanguage.name } else { \"-\" }; $desc = if \\($_.description\\) { $_.description } else { \"\" }; \"{0,-40} {1,-8} {2,-12} stars={3,3}  fork={4,-5} arch={5,-5} pushed={6}  {7}\" -f $_.name, $_.visibility, $lang, $_.stargazerCount, $_.isFork, $_.isArchived, $_.pushedAt.Substring\\(0,10\\), $desc })",
+      "Bash(npm create *)",
+      "Bash(shopt -s dotglob nullglob)",
+      "Bash(mv _scaffold/* .)",
+      "Bash(npm install *)",
+      "Bash(export PATH=\"$HOME/.cargo/bin:$PATH\")",
+      "Bash(cargo --version)",
+      "Bash(rustc --version)",
+      "Bash(npm run *)",
+      "Read(//c/Users/lambe/Downloads/**)",
+      "Bash(unzip -l \"/c/Users/lambe/Downloads/TyroLabs V2-handoff.zip\")",
+      "Bash(unzip -o \"/c/Users/lambe/Downloads/TyroLabs V2-handoff.zip\" -d _handoff/)",
+      "Bash(npx tsc *)",
+      "Bash(tasklist /FI \"IMAGENAME eq tyrolabs-toolbox.exe\")"
+    ]
+  }
+}
