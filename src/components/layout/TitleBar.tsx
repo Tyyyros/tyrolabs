@@ -30,7 +30,10 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
   }, []);
 
   useEffect(() => {
-    invoke("set_always_on_top", { value: pinned }).catch(console.error);
+    console.log("[Pin] useEffect fired, pinned =", pinned);
+    invoke("set_always_on_top", { value: pinned })
+      .then(() => console.log("[Pin] invoke OK"))
+      .catch((e) => console.error("[Pin] invoke FAILED:", e));
   }, [pinned]);
 
   const expand = hov && wide;
