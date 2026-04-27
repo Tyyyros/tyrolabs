@@ -1,4 +1,5 @@
 import { useEffect, useState, type CSSProperties } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useTheme } from "../../lib/theme";
 import { C } from "../../lib/colors";
@@ -7,8 +8,6 @@ import { WinBtn } from "./WinBtn";
 
 const win = getCurrentWindow();
 
-/** En-dessous de cette largeur, on ne déclenche pas l'expansion TLS → TYROLABS
- *  pour ne jamais grignoter la barre de recherche. */
 const EXPAND_THRESHOLD = 880;
 
 interface Props {
@@ -30,9 +29,8 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
     return () => window.removeEventListener("resize", h);
   }, []);
 
-  // Sync always-on-top state with Tauri window
   useEffect(() => {
-    win.setAlwaysOnTop(pinned).catch(console.error);
+    invoke("set_always_on_top", { value: pinned }).catch(console.error);
   }, [pinned]);
 
   const expand = hov && wide;
@@ -72,7 +70,6 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
           cursor: "default",
         }}
       >
-        {/* Star — vertical flip */}
         <span
           key={`star-${animKey}`}
           style={{
@@ -83,7 +80,6 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
           <TyroLogo size={24} color={theme.accent} />
         </span>
 
-        {/* Brackets + text */}
         <span
           style={{
             fontFamily: theme.fontMono,
@@ -121,7 +117,7 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
         </span>
       </div>
 
-      {/* Separator logo / search */}
+      {/* Separator */}
       <div
         data-tauri-drag-region
         aria-hidden="true"
