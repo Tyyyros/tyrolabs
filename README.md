@@ -29,6 +29,78 @@
 
 ---
 
+## 🚀 Installation & Lancement
+
+### Étape 1 — Installer les prérequis
+
+#### Node.js (>= 18)
+Télécharge la version LTS sur [nodejs.org](https://nodejs.org/)
+
+#### Rust
+```bash
+# Windows / macOS / Linux
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+Redémarre ton terminal après l'installation.
+
+#### Windows uniquement
+- **Microsoft C++ Build Tools** — requis pour compiler Rust : [Télécharger ici](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+  - Lors de l'installation, coche **"Desktop development with C++"**
+- **WebView2** — déjà présent sur Windows 10/11, sinon [Télécharger ici](https://developer.microsoft.com/microsoft-edge/webview2/)
+
+#### Tauri CLI
+```bash
+npm install -g @tauri-apps/cli
+```
+
+---
+
+### Étape 2 — Cloner le repo
+
+```bash
+git clone https://github.com/Tyyyros/tyrolabs.git
+cd tyrolabs
+npm install
+```
+
+---
+
+### Étape 3 — Lancer en développement
+
+```bash
+npm run tauri dev
+```
+
+> ⚠️ **La première compilation Rust peut prendre 3 à 5 minutes** — Cargo télécharge et compile toutes les dépendances. Les lancements suivants seront quasi-instantanés grâce au cache.
+
+L'application s'ouvre automatiquement. Le frontend Vite tourne sur `http://localhost:1420` avec hot-reload activé.
+
+---
+
+### Étape 4 — Build de production (optionnel)
+
+```bash
+npm run tauri build
+```
+
+Le binaire compilé sera dans :
+- **Windows** → `src-tauri/target/release/bundle/msi/` ou `nsis/`
+- **macOS** → `src-tauri/target/release/bundle/dmg/`
+- **Linux** → `src-tauri/target/release/bundle/appimage/`
+
+---
+
+## ⚙️ Scripts disponibles
+
+| Commande | Description |
+|---|---|
+| `npm run dev` | Lance Vite en mode dev (frontend seul, sans Tauri) |
+| `npm run build` | Build TypeScript + Vite |
+| `npm run tauri dev` | Lance l'app Tauri complète en développement |
+| `npm run tauri build` | Compile l'app desktop pour la production |
+
+---
+
 ## 📁 Structure du projet
 
 ```
@@ -59,42 +131,6 @@ tyrolabs/
 ├── vite.config.ts
 └── tailwind.config.js
 ```
-
----
-
-## 🚀 Installation & Développement
-
-### Prérequis
-
-- [Node.js](https://nodejs.org/) >= 18
-- [Rust](https://rustup.rs/) (dernière version stable)
-- [Tauri CLI v2](https://tauri.app/start/prerequisites/)
-
-### Lancer en développement
-
-```bash
-npm install
-npm run tauri dev
-```
-
-### Build de production
-
-```bash
-npm run tauri build
-```
-
-Le binaire compilé se trouvera dans `src-tauri/target/release/`.
-
----
-
-## ⚙️ Scripts disponibles
-
-| Commande | Description |
-|---|---|
-| `npm run dev` | Lance Vite en mode dev (frontend seul) |
-| `npm run build` | Build TypeScript + Vite |
-| `npm run tauri dev` | Lance l'app Tauri complète en développement |
-| `npm run tauri build` | Compile l'app desktop pour la production |
 
 ---
 
