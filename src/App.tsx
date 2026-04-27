@@ -39,7 +39,6 @@ async function copyToClipboard(text: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
   } catch {
-    // Fallback for environments where clipboard API is restricted
     const ta = document.createElement("textarea");
     ta.value = text;
     ta.style.position = "fixed";
@@ -54,7 +53,7 @@ async function copyToClipboard(text: string): Promise<void> {
 export default function App() {
   const [themeName, setThemeName] = useState<ThemeId>("command");
   const [activeTab, setActiveTab] = useState<TabId>("text");
-  const [winPinned, setWinPinned] = useState(false);
+  const [winPinned, setWinPinned] = useState(true);
   const [search, setSearch] = useState("");
   const [ctx, setCtx] = useState<CtxState | null>(null);
   const [sysOpen, setSysOpen] = useState(false);
