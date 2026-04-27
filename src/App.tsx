@@ -3,7 +3,9 @@ import type { ItemType, TabId, ThemeId, AnyClip, TextClip, ImageClip, LinkClip }
 import { THEMES } from "./themes";
 import { ThemeProvider } from "./lib/theme";
 import { C } from "./lib/colors";
-import { INIT_TEXT, INIT_IMAGES, INIT_LINKS } from "./data/seed";
+import { INIT_IMAGES, INIT_LINKS } from "./data/seed";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 import { TitleBar } from "./components/layout/TitleBar";
 import { Sidebar } from "./components/layout/Sidebar";
@@ -61,7 +63,7 @@ export default function App() {
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [toast, setToast] = useState("");
-  const [textClips, setTextClips] = useState<TextClip[]>(INIT_TEXT);
+  const [textClips, setTextClips] = useState<TextClip[]>([]);
   const [imageClips, setImageClips] = useState<ImageClip[]>(INIT_IMAGES);
   const [linkClips, setLinkClips] = useState<LinkClip[]>(INIT_LINKS);
 
@@ -72,6 +74,24 @@ export default function App() {
     setToast(msg);
     setTimeout(() => setToast(""), TOAST_MS);
   };
+
+  // Load persisted history on mount + subscribe to live clipboard events
+  useEffect(() => {
+    invoke<TextClip[]>("get_history")
+      .then((history) => setTextClips(history))
+      .catch((e) => console.error("[get_history] failed:", e));
+
+    let unlisten: (() => void) | undefined;
+    listen<TextClip>("clipboard://new-item", (event) => {
+      setTextClips((prev) => [event.payload, ...prev]);
+    }).then((fn) => {
+      unlisten = fn;
+    });
+
+    return () => {
+      unlisten?.();
+    };
+  }, []);
 
   useEffect(() => {
     const h = () => setCtx(null);
@@ -154,7 +174,10 @@ export default function App() {
       setCtx(null);
     },
     delete: () => {
-      if (itemType === "text") setTextClips((p) => p.filter((c) => c.id !== item.id));
+      if (itemType === "text") {
+        invoke("delete_clip", { id: (item as TextClip).id }).catch(console.error);
+        setTextClips((p) => p.filter((c) => c.id !== item.id));
+      }
       if (itemType === "image") setImageClips((p) => p.filter((c) => c.id !== item.id));
       if (itemType === "link") setLinkClips((p) => p.filter((c) => c.id !== item.id));
       fire("Supprimé");
@@ -174,7 +197,10 @@ export default function App() {
   });
 
   const handleSave = (id: number, text: string, itemType: ItemType) => {
-    if (itemType === "text") setTextClips((p) => p.map((c) => (c.id === id ? { ...c, text } : c)));
+    if (itemType === "text") {
+      invoke("update_clip", { id, text }).catch(console.error);
+      setTextClips((p) => p.map((c) => (c.id === id ? { ...c, text } : c)));
+    }
     if (itemType === "link") setLinkClips((p) => p.map((c) => (c.id === id ? { ...c, url: text } : c)));
     fire("Enregistré ✓");
   };
