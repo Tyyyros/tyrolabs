@@ -22,17 +22,4 @@ export const INIT_TEXT: TextClip[] = [
   { id: 18, text: "Refactor widgets.py — extract ClipDelegate for 60fps rendering with 1000+ items", date: "25/04", time: "19:30", type: "text", fav: false, pinned: false },
 ];
 
-export const INIT_IMAGES: ImageClip[] = [
-  { id: 1,  hash: "402d1734eb06ef97a...", dims: "342×48",    time: "00:14:13", hue: 220, pinned: false },
-  { id: 2,  hash: "64a85f14c6ec7bd65...", dims: "820×560",   time: "01:12:48", hue: 230, pinned: false },
-  { id: 3,  hash: "capture_260426_03...", dims: "2560×1392", time: "03:33:14", hue: 240, pinned: false },
-  { id: 4,  hash: "fb496efa614a8037d...", dims: "404×363",   time: "17:16:49", hue: 0,   pinned: false },
-  { id: 5,  hash: "capture_240426_17...", dims: "404×363",   time: "17:16:49", hue: 120, pinned: false },
-  { id: 6,  hash: "e6faffb662371da33...", dims: "820×560",   time: "01:24:12", hue: 210, pinned: false },
-  { id: 7,  hash: "ab9cf3bc24058d4eb...", dims: "2560×1392", time: "00:40:49", hue: 200, pinned: false },
-  { id: 8,  hash: "9a744e58e4be7db3a...", dims: "820×560",   time: "23:44:48", hue: 260, pinned: false },
-  { id: 9,  hash: "429a2a2a0403bc96d...", dims: "820×560",   time: "23:44:48", hue: 180, pinned: false },
-  { id: 10, hash: "e3f9c81c4d48a0e2e...", dims: "1128×536",  time: "23:43:46", hue: 215, pinned: false },
-  { id: 11, hash: "904eb676c4d58bdab...", dims: "1273×1015", time: "20:57:25", hue: 350, pinned: false },
-  { id: 12, hash: "6764a2f3adde0b92...",  dims: "595×308",   time: "20:57:22", hue: 140, pinned: false },
-];
+export const INIT_IMAGES: ImageClip[] = [];

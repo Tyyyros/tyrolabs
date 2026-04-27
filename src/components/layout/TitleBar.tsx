@@ -48,7 +48,7 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
     <div
       data-tauri-drag-region
       style={{
-        height: 72,
+        height: 52,
         background: "var(--sidebar)",
         display: "flex",
         alignItems: "center",
@@ -126,7 +126,7 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
         aria-hidden="true"
         style={{
           width: 1,
-          height: 32,
+          height: 24,
           background: C.border,
           flexShrink: 0,
         }}
@@ -146,12 +146,12 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
             background: "#06060A",
             border: `1px solid ${C.border}`,
             borderRadius: 8,
-            padding: "8px 16px",
+            padding: "6px 12px",
             width: "100%",
             maxWidth: 480,
           }}
         >
-          <Ic.Search width={22} height={22} style={{ color: C.t3, flexShrink: 0 }} />
+          <Ic.Search width={18} height={18} style={{ color: C.t3, flexShrink: 0 }} />
           <input
             value={search}
             onChange={(e) => onSearch(e.target.value)}
@@ -161,7 +161,7 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
               border: "none",
               outline: "none",
               color: C.t1,
-              fontSize: 22,
+              fontSize: 15,
               fontFamily: theme.fontUI,
               width: "100%",
               minWidth: 0,
@@ -180,7 +180,7 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
                 display: "flex",
               }}
             >
-              <Ic.X width={18} height={18} />
+              <Ic.X width={16} height={16} />
             </button>
           )}
         </div>

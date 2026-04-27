@@ -162,6 +162,26 @@ export const Ic = {
       <circle cx="15" cy="9" r="1" fill="currentColor" stroke="none" />
     </>,
   ),
+  Wand: mkSvg(
+    <>
+      <path d="M15 4V2" /><path d="M15 16v-2" /><path d="M8 9h2" /><path d="M20 9h2" /><path d="M17.8 11.8L19 13" /><path d="M10.2 6.2L9 5" /><path d="M17.8 6.2L19 5" /><path d="M10.2 11.8L9 13" /><path d="m3 21 9-9" /><path d="M12.2 11.8A2 2 0 1 1 15 9a2 2 0 0 1-2.8 2.8z" />
+    </>
+  ),
+  CaseUpper: mkSvg(
+    <>
+      <path d="m3 15 4-8 4 8" /><path d="M4 13h6" /><path d="M15 11h4.5a2 2 0 0 1 0 4H15V7h4a2 2 0 0 1 0 4" />
+    </>
+  ),
+  CaseLower: mkSvg(
+    <>
+      <circle cx="7" cy="12" r="3" /><path d="M10 9v6" /><circle cx="17" cy="12" r="3" /><path d="M14 7v8" />
+    </>
+  ),
+  AlignLeft: mkSvg(
+    <>
+      <path d="M21 12H3"/><path d="M15 6H3"/><path d="M17 18H3"/>
+    </>
+  ),
   PinFill: (p: SVGProps<SVGSVGElement>) => (
     <svg
       {...p}

@@ -7,18 +7,22 @@ export interface TextClip {
   text: string;
   date: string;
   time: string;
-  type: "text" | "code";
+  type: string;
   fav: boolean;
   pinned: boolean;
 }
 
 export interface ImageClip {
   id: number;
+  text: string;
+  date: string;
+  time: string;
+  type: string;
+  fav: boolean;
+  pinned: boolean;
   hash: string;
   dims: string;
-  time: string;
   hue: number;
-  pinned: boolean;
 }
 
 export type AnyClip = TextClip | ImageClip;

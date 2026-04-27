@@ -4,7 +4,7 @@ import { C } from "../../lib/colors";
 import { Ic, type IcProps } from "../icons";
 import type { TabId } from "../../types";
 
-const SB_ICON = 24;
+const SB_ICON = 20;
 
 type IcComponent = ComponentType<IcProps>;
 
@@ -41,7 +41,7 @@ function SbBtn({ Icon, label, active, onClick }: SbBtnProps) {
       onMouseLeave={() => setHov(false)}
       style={{
         width: "100%",
-        height: 54,
+        height: 46,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -71,7 +71,7 @@ export function Sidebar({ activeTab, onTab, onSettings, onSystem, onCapture }: P
   return (
     <div
       style={{
-        width: 64,
+        width: 54,
         background: "var(--sidebar)",
         display: "flex",
         flexDirection: "column",

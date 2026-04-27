@@ -89,24 +89,36 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
 
-    invoke<TextClip[]>("get_history")
+    invoke<AnyClip[]>("get_history")
       .then((history) => {
-        if (!cancelled) setTextClips(history);
+        if (!cancelled) {
+          const texts = history.filter((c) => c.type === "text" || c.type === "link" || c.type === "code") as TextClip[];
+          const imgs = history.filter((c) => c.type === "image") as ImageClip[];
+          setTextClips(texts);
+          setImageClips(imgs);
+        }
       })
       .catch((e) => console.error("[get_history] failed:", e));
 
     let unlisten: (() => void) | undefined;
-    listen<TextClip>("clipboard://new-item", (event) => {
+    listen<AnyClip>("clipboard://new-item", (event) => {
       if (!cancelled) {
-        setTextClips((prev) => {
-          // Deduplicate by id to prevent double-adds
-          if (prev.some((c) => c.id === event.payload.id)) return prev;
-          return [event.payload, ...prev];
-        });
+        const payload = event.payload;
+        if (payload.type === "image") {
+          setImageClips((prev) => {
+            if (prev.some((c) => c.id === payload.id)) return prev;
+            return [payload as ImageClip, ...prev];
+          });
+        } else {
+          setTextClips((prev) => {
+            if (prev.some((c) => c.id === payload.id)) return prev;
+            return [payload as TextClip, ...prev];
+          });
+        }
       }
     }).then((fn) => {
       if (cancelled) {
-        fn(); // Already unmounted — cleanup immediately
+        fn();
       } else {
         unlisten = fn;
       }
@@ -212,12 +224,32 @@ export default function App() {
       fire("Texte brut copié ✓");
       setCtx(null);
     },
+    open: () => {
+      const text =
+        itemType === "text" || itemType === "link"
+          ? (item as TextClip).text
+          : (item as ImageClip).hash;
+      if (itemType === "link") {
+        invoke("open_file_or_url", { path: text }).catch(console.error);
+        fire("Ouverture en cours...");
+      } else if (itemType === "image") {
+        invoke("open_in_paint", { path: text }).catch(console.error);
+        fire("Ouverture dans Paint...");
+      }
+      setCtx(null);
+    },
   });
 
-  const handleSave = (id: number, text: string, itemType: ItemType) => {
+  const handleSave = (id: number, text: string, itemType: ItemType, copyAfter?: boolean) => {
     if (itemType === "text" || itemType === "link") {
       invoke("update_clip", { id, text }).catch(console.error);
       setTextClips((p) => p.map((c) => (c.id === id ? { ...c, text } : c)));
+      
+      if (copyAfter) {
+        copyToClipboard(text).catch(console.error);
+        fire("Enregistré et copié ✓");
+        return;
+      }
     }
     fire("Enregistré ✓");
   };
@@ -286,6 +318,7 @@ export default function App() {
               flexDirection: "column",
               overflow: "hidden",
               borderLeft: `1px solid ${C.border}`,
+              position: "relative",
             }}
           >
             {activeTab === "text" && (
@@ -340,6 +373,14 @@ export default function App() {
               </div>
             )}
             <StatusBar count={tabCount[activeTab] ?? 0} tab={activeTab} />
+            {editor && (
+              <EditorPanel
+                item={editor.item}
+                itemType={editor.itemType}
+                onSave={handleSave}
+                onClose={() => setEditor(null)}
+              />
+            )}
           </div>
         </div>
 
@@ -358,14 +399,6 @@ export default function App() {
             onClose={() => setSettOpen(false)}
             themeName={themeName}
             onThemeChange={setThemeName}
-          />
-        )}
-        {editor && (
-          <EditorPanel
-            item={editor.item}
-            itemType={editor.itemType}
-            onSave={handleSave}
-            onClose={() => setEditor(null)}
           />
         )}
         {toast && <Toast msg={toast} />}

@@ -10,6 +10,7 @@ export interface CtxHandlers {
   pin: () => void;
   delete: () => void;
   copyPlain?: () => void;
+  open?: () => void;
 }
 
 interface Props {
@@ -61,14 +62,15 @@ export function CtxMenu({ x, y, item, itemType, handlers }: Props) {
   } else if (itemType === "image") {
     rows = [
       { label: "Copier l'image", icon: <Ic.Copy width={13} height={13} strokeWidth={theme.iconStroke} />, action: handlers.copy },
-      { label: "Ouvrir dans Paint", icon: <Ic.Paint width={13} height={13} strokeWidth={theme.iconStroke} />, action: handlers.edit },
+      { label: "Ouvrir dans Paint", icon: <Ic.Paint width={13} height={13} strokeWidth={theme.iconStroke} />, action: handlers.open ?? (() => {}) },
       { label: pinLabel, icon: pinIcon, action: handlers.pin },
       null,
       { label: "Supprimer", icon: <Ic.Trash width={13} height={13} strokeWidth={theme.iconStroke} />, action: handlers.delete, danger: true },
     ];
   } else {
     rows = [
-      { label: "Copier le lien", icon: <Ic.Copy width={13} height={13} strokeWidth={theme.iconStroke} />, action: handlers.copy },
+      { label: "Ouvrir", icon: <Ic.ArrowUp width={13} height={13} strokeWidth={theme.iconStroke} />, action: handlers.open ?? (() => {}) },
+      { label: "Copier", icon: <Ic.Copy width={13} height={13} strokeWidth={theme.iconStroke} />, action: handlers.copy },
       { label: "Éditer", icon: <Ic.Edit width={13} height={13} strokeWidth={theme.iconStroke} />, action: handlers.edit },
       { label: pinLabel, icon: pinIcon, action: handlers.pin },
       null,

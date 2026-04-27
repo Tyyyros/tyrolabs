@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, useEffect, type ReactNode } from "react";
 import type { ImageClip, ItemType } from "../../types";
 import { useTheme } from "../../lib/theme";
 import { C } from "../../lib/colors";
@@ -32,7 +32,7 @@ export function ImagesTab({ images, onCtx, onDoubleClick, gridCols, selectedId, 
       <div
         style={{ display: "grid", gridTemplateColumns: `repeat(${gridCols},1fr)`, gap: 10 }}
       >
-        {sorted.map((img, i) => (
+        {sorted.map((img) => (
           <div
             key={img.id}
             onMouseEnter={() => setHov(img.id)}
@@ -67,7 +67,7 @@ export function ImagesTab({ images, onCtx, onDoubleClick, gridCols, selectedId, 
                 background: `linear-gradient(135deg, hsl(${img.hue},18%,6%) 0%, hsl(${img.hue},12%,10%) 100%)`,
               }}
             >
-              <ImgMock idx={i} hue={img.hue} />
+              <ImgView hash={img.hash} />
               {hov === img.id && (
                 <div
                   style={{
@@ -139,61 +139,36 @@ export function ImagesTab({ images, onCtx, onDoubleClick, gridCols, selectedId, 
   );
 }
 
-function ImgMock({ idx, hue }: { idx: number; hue: number }) {
-  const rows = [4, 5, 6, 3, 5, 4, 6, 5, 3, 4, 5, 6];
-  const n = rows[idx % rows.length];
+import { invoke } from "@tauri-apps/api/core";
+
+function ImgView({ hash }: { hash: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    invoke<string>("get_image_base64", { hash })
+      .then((b64) => {
+        if (active) setSrc(`data:image/png;base64,${b64}`);
+      })
+      .catch((e) => console.error("Failed to load image:", e));
+    return () => { active = false; };
+  }, [hash]);
+
+  if (!src) return null;
+
   return (
-    <div
+    <img
+      src={src}
       style={{
         position: "absolute",
         inset: 0,
-        padding: "10% 8%",
-        display: "flex",
-        flexDirection: "column",
-        gap: "6%",
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
       }}
-    >
-      <div style={{ height: "10%", display: "flex", gap: "3%", alignItems: "center" }}>
-        <div
-          style={{ width: "8%", height: "100%", background: "rgba(255,255,255,0.06)", borderRadius: 2 }}
-        />
-        <div
-          style={{ flex: 1, height: "100%", background: "rgba(255,255,255,0.04)", borderRadius: 2 }}
-        />
-        <div
-          style={{
-            width: "12%",
-            height: "100%",
-            background: `hsl(${hue},50%,20%)`,
-            borderRadius: 2,
-            opacity: 0.5,
-          }}
-        />
-      </div>
-      <div style={{ flex: 1, display: "flex", gap: "4%" }}>
-        <div style={{ width: "18%", display: "flex", flexDirection: "column", gap: "8%" }}>
-          {[...Array(Math.min(n, 5))].map((_, j) => (
-            <div
-              key={j}
-              style={{ height: "12%", background: "rgba(255,255,255,0.04)", borderRadius: 1 }}
-            />
-          ))}
-        </div>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "5%" }}>
-          {[...Array(n)].map((_, j) => (
-            <div
-              key={j}
-              style={{
-                height: "10%",
-                background: "rgba(255,255,255,0.04)",
-                borderRadius: 1,
-                width: `${50 + ((j * 37) % 45)}%`,
-              }}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
+      alt="clipboard"
+      draggable={false}
+    />
   );
 }
 
