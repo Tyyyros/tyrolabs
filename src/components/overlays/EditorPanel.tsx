@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import type { TextClip, LinkClip, ItemType } from "../../types";
+import type { TextClip, ItemType } from "../../types";
 import { useTheme } from "../../lib/theme";
 import { C } from "../../lib/colors";
 import { Ic } from "../icons";
 import { WinBtn } from "../layout/WinBtn";
 
-type EditableItem = TextClip | LinkClip;
+type EditableItem = TextClip;
 
 interface Props {
   item: EditableItem;
@@ -16,14 +16,12 @@ interface Props {
 
 export function EditorPanel({ item, itemType, onSave, onClose }: Props) {
   const theme = useTheme();
-  const initial = itemType === "link" ? (item as LinkClip).url : (item as TextClip).text || "";
+  const initial = item.text || "";
   const [text, setText] = useState(initial);
   const [anim, setAnim] = useState(false);
   useEffect(() => {
     requestAnimationFrame(() => setAnim(true));
   }, []);
-
-  const isCode = itemType === "text" && (item as TextClip).type === "code";
 
   return (
     <div
@@ -81,7 +79,7 @@ export function EditorPanel({ item, itemType, onSave, onClose }: Props) {
               borderRadius: 6,
               color: C.t1,
               fontSize: 13,
-              fontFamily: isCode ? theme.fontMono : theme.fontUI,
+              fontFamily: theme.fontUI,
               padding: "10px 12px",
               outline: "none",
               resize: "vertical",

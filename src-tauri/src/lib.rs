@@ -8,6 +8,10 @@ use std::{
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_store::StoreExt;
 
+/// Shared state to let the frontend tell the watcher to ignore
+/// the next clipboard change (when the app itself copies text).
+struct SuppressState(Arc<Mutex<Option<String>>>);
+
 const STORE_FILE: &str = "clipboard_history.json";
 const HISTORY_KEY: &str = "history";
 const MAX_HISTORY: usize = 200;
@@ -66,6 +70,22 @@ fn set_always_on_top(window: tauri::WebviewWindow, value: bool) -> Result<(), St
 }
 
 #[tauri::command]
+fn suppress_next(state: tauri::State<'_, SuppressState>, text: String) {
+    let mut guard = state.0.lock().unwrap();
+    *guard = Some(text);
+}
+
+#[tauri::command]
+fn reorder_clip(app: AppHandle, id: u64) {
+    let mut history = load_history(&app);
+    if let Some(pos) = history.iter().position(|c| c.id == id) {
+        let clip = history.remove(pos);
+        history.insert(0, clip);
+        save_history(&app, &history);
+    }
+}
+
+#[tauri::command]
 fn get_history(app: AppHandle) -> Vec<TextClip> {
     load_history(&app)
 }
@@ -100,7 +120,11 @@ fn update_clip(app: AppHandle, id: u64, text: String) {
     save_history(&app, &history);
 }
 
-fn start_clipboard_watcher(app: AppHandle, last_text: Arc<Mutex<String>>) {
+fn start_clipboard_watcher(
+    app: AppHandle,
+    last_text: Arc<Mutex<String>>,
+    suppress: Arc<Mutex<Option<String>>>,
+) {
     thread::spawn(move || {
         let mut clipboard = match Clipboard::new() {
             Ok(c) => c,
@@ -119,6 +143,18 @@ fn start_clipboard_watcher(app: AppHandle, last_text: Arc<Mutex<String>>) {
             let text = text.trim().to_string();
             if text.is_empty() {
                 continue;
+            }
+
+            // Check if this text was copied by the app itself
+            {
+                let mut sup = suppress.lock().unwrap();
+                if sup.as_deref() == Some(text.as_str()) {
+                    *sup = None;
+                    // Still update last_text so we don't re-detect later
+                    let mut last = last_text.lock().unwrap();
+                    *last = text;
+                    continue;
+                }
             }
 
             let mut last = last_text.lock().unwrap();
@@ -140,12 +176,7 @@ fn start_clipboard_watcher(app: AppHandle, last_text: Arc<Mutex<String>>) {
                 .unwrap_or_default()
                 .as_millis() as u64;
 
-            let clip_type = if text.contains('\n') || text.starts_with("```") {
-                "code"
-            } else {
-                "text"
-            }
-            .to_string();
+            let clip_type = "text".to_string();
 
             let clip = TextClip {
                 id,
@@ -169,21 +200,26 @@ fn start_clipboard_watcher(app: AppHandle, last_text: Arc<Mutex<String>>) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let last_text = Arc::new(Mutex::new(String::new()));
+    let suppress = Arc::new(Mutex::new(None::<String>));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
+        .manage(SuppressState(Arc::clone(&suppress)))
         .invoke_handler(tauri::generate_handler![
             set_always_on_top,
             get_history,
             clear_history,
             toggle_fav,
             delete_clip,
-            update_clip
+            update_clip,
+            suppress_next,
+            reorder_clip
         ])
         .setup(move |app| {
             let app_handle = app.handle().clone();
             let last = Arc::clone(&last_text);
-            start_clipboard_watcher(app_handle, last);
+            let sup = Arc::clone(&suppress);
+            start_clipboard_watcher(app_handle, last, sup);
             Ok(())
         })
         .run(tauri::generate_context!())

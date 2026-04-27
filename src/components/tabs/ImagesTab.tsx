@@ -41,7 +41,7 @@ export function ImagesTab({ images, onCtx, onDoubleClick, gridCols, selectedId, 
               e.preventDefault();
               onCtx({ e, item: img, itemType: "image" });
             }}
-            onClick={() => onSelect(img.id)}
+            onMouseDown={() => onSelect(img.id)}
             onDoubleClick={() => onDoubleClick(img.id, "image")}
             style={{
               cursor: "pointer",

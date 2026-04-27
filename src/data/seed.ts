@@ -1,5 +1,5 @@
-import type { TextClip, ImageClip, LinkClip } from "../types";
-import { C } from "../lib/colors";
+import type { TextClip, ImageClip } from "../types";
+
 
 export const INIT_TEXT: TextClip[] = [
   { id: 1,  text: "résume les s fsfenctionnalités", date: "26/04", time: "03:04", type: "text", fav: false, pinned: false },
@@ -35,14 +35,4 @@ export const INIT_IMAGES: ImageClip[] = [
   { id: 10, hash: "e3f9c81c4d48a0e2e...", dims: "1128×536",  time: "23:43:46", hue: 215, pinned: false },
   { id: 11, hash: "904eb676c4d58bdab...", dims: "1273×1015", time: "20:57:25", hue: 350, pinned: false },
   { id: 12, hash: "6764a2f3adde0b92...",  dims: "595×308",   time: "20:57:22", hue: 140, pinned: false },
-];
-
-export const INIT_LINKS: LinkClip[] = [
-  { id: 1, url: "https://github.com/TyroLabs/v2",                   title: "TyroLabs V2 — GitHub",         date: "26/04", time: "23:30", sig: "GH", col: C.accent, pinned: false },
-  { id: 2, url: "https://lucide.dev/icons/?search=pin",              title: "Lucide Icons — pin search",    date: "25/04", time: "21:55", sig: "LU", col: C.amber,  pinned: false },
-  { id: 3, url: "https://fonts.google.com/specimen/Space+Grotesk",   title: "Space Grotesk — Google Fonts", date: "25/04", time: "20:44", sig: "GF", col: C.green,  pinned: false },
-  { id: 4, url: "https://docs.python.org/3/library/subprocess.html", title: "subprocess — Python 3.12",     date: "25/04", time: "19:22", sig: "PY", col: C.amber,  pinned: false },
-  { id: 5, url: "https://doc.qt.io/qt-6/qpropertyanimation.html",    title: "QPropertyAnimation — Qt 6",    date: "25/04", time: "18:55", sig: "QT", col: C.green,  pinned: false },
-  { id: 6, url: "https://www.nvidia.com/drivers",                    title: "NVIDIA Driver Downloads",      date: "25/04", time: "17:30", sig: "NV", col: C.green,  pinned: false },
-  { id: 7, url: "https://adoptium.net/temurin/releases/",            title: "Eclipse Adoptium — Java 21",   date: "25/04", time: "16:10", sig: "JV", col: C.amber,  pinned: false },
 ];

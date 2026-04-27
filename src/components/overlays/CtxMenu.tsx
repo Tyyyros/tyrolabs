@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import type { AnyClip, ItemType, TextClip, ImageClip, LinkClip } from "../../types";
+import type { AnyClip, ItemType, TextClip, ImageClip } from "../../types";
 import { useTheme } from "../../lib/theme";
 import { C } from "../../lib/colors";
 import { Ic } from "../icons";
@@ -35,14 +35,12 @@ export function CtxMenu({ x, y, item, itemType, handlers }: Props) {
   const preview =
     itemType === "image"
       ? (item as ImageClip).hash
-      : itemType === "link"
-        ? (item as LinkClip).title
-        : (() => {
+      : (() => {
             const t = (item as TextClip).text || "";
-            return t.substring(0, 52) + (t.length > 52 ? "…" : "");
+            return t.substring(0, 52) + (t.length > 52 ? "\u2026" : "");
           })();
 
-  const isPinned = (item as TextClip | ImageClip | LinkClip).pinned;
+  const isPinned = (item as TextClip | ImageClip).pinned;
   const pinIcon = isPinned ? (
     <Ic.PinFill width={13} height={13} />
   ) : (

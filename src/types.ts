@@ -21,18 +21,7 @@ export interface ImageClip {
   pinned: boolean;
 }
 
-export interface LinkClip {
-  id: number;
-  url: string;
-  title: string;
-  date: string;
-  time: string;
-  sig: string;
-  col: string;
-  pinned: boolean;
-}
-
-export type AnyClip = TextClip | ImageClip | LinkClip;
+export type AnyClip = TextClip | ImageClip;
 
 export interface Theme {
   id: string;

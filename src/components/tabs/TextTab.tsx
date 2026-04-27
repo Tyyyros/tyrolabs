@@ -78,7 +78,7 @@ export function TextRow({ clip, onCtx, onDoubleClick, theme, selected, onSelect 
         e.preventDefault();
         onCtx({ e, item: clip, itemType: "text" });
       }}
-      onClick={() => onSelect(clip.id)}
+      onMouseDown={() => onSelect(clip.id)}
       onDoubleClick={() => onDoubleClick(clip.id, "text")}
       style={{
         height: 34,
@@ -111,8 +111,8 @@ export function TextRow({ clip, onCtx, onDoubleClick, theme, selected, onSelect 
           flex: 1,
           fontSize: 12.5,
           minWidth: 0,
-          color: clip.type === "code" ? "#9090B8" : C.t1,
-          fontFamily: clip.type === "code" ? theme.fontMono : theme.fontUI,
+          color: C.t1,
+          fontFamily: theme.fontUI,
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
