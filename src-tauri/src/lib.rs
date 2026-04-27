@@ -1,6 +1,6 @@
 #[tauri::command]
-fn set_always_on_top(window: tauri::Window, value: bool) {
-    let _ = window.set_always_on_top(value);
+fn set_always_on_top(window: tauri::WebviewWindow, value: bool) -> Result<(), String> {
+    window.set_always_on_top(value).map_err(|e| e.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
