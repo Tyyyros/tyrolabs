@@ -30,6 +30,11 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
     return () => window.removeEventListener("resize", h);
   }, []);
 
+  // Sync always-on-top state with Tauri window
+  useEffect(() => {
+    win.setAlwaysOnTop(pinned).catch(console.error);
+  }, [pinned]);
+
   const expand = hov && wide;
 
   const handleEnter = () => {
@@ -63,8 +68,6 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
           alignItems: "center",
           gap: 8,
           flexShrink: 0,
-          // En mode wide, on réserve la largeur de la version expanded pour
-          // que l'animation TLS→TYROLABS ne pousse pas la search-zone.
           minWidth: wide ? 140 : 0,
           cursor: "default",
         }}
