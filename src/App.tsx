@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ItemType, TabId, ThemeId, AnyClip, TextClip, ImageClip } from "./types";
+import type { AnyClip, ItemType, TabId, TextClip, ThemeId } from "./types";
 import { THEMES } from "./themes";
 import { ThemeProvider } from "./lib/theme";
 import { C } from "./lib/colors";
-import { INIT_IMAGES } from "./data/seed";
+import { useClipboardStore } from "./lib/clipboard-store";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors, pointerWithin } from "@dnd-kit/core";
+import { CollectionBar } from "./components/groups/CollectionBar";
+import { CreateCollectionModal } from "./components/groups/CreateCollectionModal";
 
 import { TitleBar } from "./components/layout/TitleBar";
 import { Sidebar } from "./components/layout/Sidebar";
@@ -46,23 +48,6 @@ function isLinkOrPath(text: string): boolean {
 
 const TOAST_MS = 2200;
 
-async function copyToClipboard(text: string): Promise<void> {
-  // Tell the Rust watcher to ignore this text so it doesn't re-detect it
-  await invoke("suppress_next", { text }).catch(() => {});
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand("copy");
-    document.body.removeChild(ta);
-  }
-}
-
 export default function App() {
   const [themeName, setThemeName] = useState<ThemeId>("command");
   const [activeTab, setActiveTab] = useState<TabId>("text");
@@ -74,66 +59,35 @@ export default function App() {
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [toast, setToast] = useState("");
-  const [textClips, setTextClips] = useState<TextClip[]>([]);
-  const [imageClips, setImageClips] = useState<ImageClip[]>(INIT_IMAGES);
+  const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null);
+  const [createCollectionOpen, setCreateCollectionOpen] = useState(false);
+
+  const {
+    textClips,
+    imageClips,
+    collections,
+    copyClip,
+    copyAndPromoteClip,
+    togglePinned,
+    deleteClip,
+    openClip,
+    updateTextClip,
+    createCollection,
+    deleteCollection,
+    setClipCollection,
+    reorderInCollection,
+  } = useClipboardStore();
 
   const theme = THEMES[themeName];
-  const gridCols = 4;
-
   const fire = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(""), TOAST_MS);
   };
 
-  // Load persisted history on mount + subscribe to live clipboard events
   useEffect(() => {
-    let cancelled = false;
-
-    invoke<AnyClip[]>("get_history")
-      .then((history) => {
-        if (!cancelled) {
-          const texts = history.filter((c) => c.type === "text" || c.type === "link" || c.type === "code") as TextClip[];
-          const imgs = history.filter((c) => c.type === "image") as ImageClip[];
-          setTextClips(texts);
-          setImageClips(imgs);
-        }
-      })
-      .catch((e) => console.error("[get_history] failed:", e));
-
-    let unlisten: (() => void) | undefined;
-    listen<AnyClip>("clipboard://new-item", (event) => {
-      if (!cancelled) {
-        const payload = event.payload;
-        if (payload.type === "image") {
-          setImageClips((prev) => {
-            if (prev.some((c) => c.id === payload.id)) return prev;
-            return [payload as ImageClip, ...prev];
-          });
-        } else {
-          setTextClips((prev) => {
-            if (prev.some((c) => c.id === payload.id)) return prev;
-            return [payload as TextClip, ...prev];
-          });
-        }
-      }
-    }).then((fn) => {
-      if (cancelled) {
-        fn();
-      } else {
-        unlisten = fn;
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      unlisten?.();
-    };
-  }, []);
-
-  useEffect(() => {
-    const h = () => setCtx(null);
-    document.addEventListener("click", h);
-    return () => document.removeEventListener("click", h);
+    const closeCtx = () => setCtx(null);
+    document.addEventListener("click", closeCtx);
+    return () => document.removeEventListener("click", closeCtx);
   }, []);
 
   const handleCtx = ({
@@ -149,134 +103,125 @@ export default function App() {
     setCtx({ x: e.clientX, y: e.clientY, item, itemType });
   };
 
-  const handleDoubleClick = (id: number, type: ItemType) => {
-    const clip =
-      type === "text" || type === "link"
-        ? textClips.find((c) => c.id === id)
-        : imageClips.find((c) => c.id === id);
-
-    if (clip) {
-      const text =
-        type === "text" || type === "link"
-          ? (clip as TextClip).text
-          : (clip as ImageClip).hash;
-      copyToClipboard(text).catch(console.error);
-    }
-
-    // Reorder locally + persist via Rust command
-    const lift = <T extends { id: number }>(setter: React.Dispatch<React.SetStateAction<T[]>>) => {
-      setter((prev) => {
-        const it = prev.find((c) => c.id === id);
-        return it ? [it, ...prev.filter((c) => c.id !== id)] : prev;
-      });
-    };
-    if (type === "text" || type === "link") {
-      lift(setTextClips);
-      invoke("reorder_clip", { id }).catch(console.error);
-    }
-    if (type === "image") lift(setImageClips);
-    fire("Copié + remonté en tête ↑");
+  const handleDoubleClick = (id: number, itemType: ItemType) => {
+    copyAndPromoteClip(id, itemType)
+      .then((didCopy) => {
+        if (didCopy) fire("Copié + remonté en tête ↑");
+      })
+      .catch(console.error);
   };
 
   const buildHandlers = (item: AnyClip, itemType: ItemType): CtxHandlers => ({
     copy: () => {
-      const text =
-        itemType === "text" || itemType === "link"
-          ? (item as TextClip).text
-          : (item as ImageClip).hash;
-      copyToClipboard(text).catch(console.error);
-      fire("Copié ✓");
+      copyClip(item, itemType)
+        .then(() => fire("Copié ✓"))
+        .catch(console.error);
       setCtx(null);
     },
     edit: () => {
       if (itemType === "image") {
         fire("Ouverture dans Paint...");
-        setCtx(null);
       } else {
         setEditor({ item: item as TextClip, itemType });
-        setCtx(null);
       }
+      setCtx(null);
     },
     pin: () => {
-      const toggle = <T extends { id: number; pinned: boolean }>(arr: T[]) =>
-        arr.map((c) => (c.id === item.id ? { ...c, pinned: !c.pinned } : c));
-      if (itemType === "text" || itemType === "link") setTextClips((prev) => toggle(prev));
-      if (itemType === "image") setImageClips((prev) => toggle(prev));
-      const wasPinned = (item as TextClip | ImageClip).pinned;
-      fire(wasPinned ? "Désépinglé" : "Épinglé ✓");
+      togglePinned(item.id, itemType);
+      fire(item.pinned ? "Désépinglé" : "Épinglé ✓");
       setCtx(null);
     },
     delete: () => {
-      if (itemType === "text" || itemType === "link") {
-        invoke("delete_clip", { id: (item as TextClip).id }).catch(console.error);
-        setTextClips((p) => p.filter((c) => c.id !== item.id));
-      }
-      if (itemType === "image") setImageClips((p) => p.filter((c) => c.id !== item.id));
+      deleteClip(item.id, itemType);
       fire("Supprimé");
       setCtx(null);
     },
     copyPlain: () => {
-      const text =
-        itemType === "text" || itemType === "link"
-          ? (item as TextClip).text
-          : (item as ImageClip).hash;
-      copyToClipboard(text).catch(console.error);
-      fire("Texte brut copié ✓");
+      copyClip(item, itemType)
+        .then(() => fire("Texte brut copié ✓"))
+        .catch(console.error);
       setCtx(null);
     },
     open: () => {
-      const text =
-        itemType === "text" || itemType === "link"
-          ? (item as TextClip).text
-          : (item as ImageClip).hash;
-      if (itemType === "link") {
-        invoke("open_file_or_url", { path: text }).catch(console.error);
-        fire("Ouverture en cours...");
-      } else if (itemType === "image") {
-        invoke("open_in_paint", { path: text }).catch(console.error);
-        fire("Ouverture dans Paint...");
-      }
+      openClip(item, itemType);
+      if (itemType === "link") fire("Ouverture en cours...");
+      if (itemType === "image") fire("Ouverture dans Paint...");
       setCtx(null);
     },
   });
 
   const handleSave = (id: number, text: string, itemType: ItemType, copyAfter?: boolean) => {
-    if (itemType === "text" || itemType === "link") {
-      invoke("update_clip", { id, text }).catch(console.error);
-      setTextClips((p) => p.map((c) => (c.id === id ? { ...c, text } : c)));
-      
-      if (copyAfter) {
-        copyToClipboard(text).catch(console.error);
-        fire("Enregistré et copié ✓");
-        return;
-      }
-    }
-    fire("Enregistré ✓");
+    updateTextClip(id, text, itemType, copyAfter)
+      .then(() => fire(copyAfter ? "Enregistré et copié ✓" : "Enregistré ✓"))
+      .catch(console.error);
   };
+
+  const collectionClipCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const countClips = (c: AnyClip) => {
+      if (c.collection_id) counts[c.collection_id] = (counts[c.collection_id] || 0) + 1;
+    };
+    textClips.forEach(countClips);
+    imageClips.forEach(countClips);
+    return counts;
+  }, [textClips, imageClips]);
+
+  const baseText = useMemo(() => activeCollectionId ? textClips.filter(c => c.collection_id === activeCollectionId).sort((a,b) => (a.sort_order || 0) - (b.sort_order || 0)) : textClips.filter(c => !c.collection_id), [textClips, activeCollectionId]);
+  const baseImages = useMemo(() => activeCollectionId ? imageClips.filter(c => c.collection_id === activeCollectionId).sort((a,b) => (a.sort_order || 0) - (b.sort_order || 0)) : imageClips.filter(c => !c.collection_id), [imageClips, activeCollectionId]);
 
   const q = search.toLowerCase();
   const filteredText = useMemo(
-    () => (!search ? textClips : textClips.filter((c) => c.text.toLowerCase().includes(q))),
-    [textClips, search, q],
+    () => (!search ? baseText : baseText.filter((clip) => clip.text.toLowerCase().includes(q))),
+    [q, search, baseText],
   );
   const filteredImages = useMemo(
-    () => (!search ? imageClips : imageClips.filter((c) => c.hash.toLowerCase().includes(q))),
-    [imageClips, search, q],
+    () => (!search ? baseImages : baseImages.filter((clip) => clip.hash.toLowerCase().includes(q))),
+    [baseImages, q, search],
   );
-  const autoLinks = useMemo(
-    () => textClips.filter((c) => isLinkOrPath(c.text)),
-    [textClips],
-  );
+  const autoLinks = useMemo(() => textClips.filter((clip) => isLinkOrPath(clip.text)), [textClips]);
   const filteredLinks = useMemo(
-    () => (!search ? autoLinks : autoLinks.filter((c) => c.text.toLowerCase().includes(q))),
-    [autoLinks, search, q],
+    () => (!search ? autoLinks : autoLinks.filter((clip) => clip.text.toLowerCase().includes(q))),
+    [autoLinks, q, search],
   );
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+    
+    // Drop on a collection slot
+    if (over.id.toString().startsWith("collection-drop-")) {
+      const collectionId = over.data.current?.collectionId;
+      const clipId = active.data.current?.clipId;
+      if (collectionId && clipId !== undefined) {
+        setClipCollection(clipId, collectionId, 0).then(() => fire("Déplacé vers la collection ✓"));
+      }
+    }
+    // Drop to reorder inside collection
+    else if (activeCollectionId && over.id !== active.id) {
+       const clipId = active.data.current?.clipId;
+       const overId = over.data.current?.clipId;
+       const type = active.data.current?.type;
+       if (clipId && overId && type) {
+          const list = type === "text" || type === "link" ? (type === "link" ? filteredLinks : filteredText) : filteredImages;
+          const oldIndex = list.findIndex(c => c.id === clipId);
+          const newIndex = list.findIndex(c => c.id === overId);
+          if (oldIndex !== -1 && newIndex !== -1) {
+             const newList = [...list];
+             const [moved] = newList.splice(oldIndex, 1);
+             newList.splice(newIndex, 0, moved);
+             reorderInCollection(newList.map(c => c.id));
+          }
+       }
+    }
+  };
 
   const tabCount: Record<TabId, number> = {
     text: filteredText.length,
     images: filteredImages.length,
     links: filteredLinks.length,
-    favs: textClips.filter((c) => c.fav).length,
+    favs: textClips.filter((clip) => clip.fav).length,
     colls: 0,
   };
 
@@ -303,86 +248,112 @@ export default function App() {
           onSearch={setSearch}
         />
 
-        <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-          <Sidebar
-            activeTab={activeTab}
-            onTab={setActiveTab}
-            onSettings={() => setSettOpen(true)}
-            onSystem={() => setSysOpen(true)}
-            onCapture={() => fire("Capture (à venir)")}
-          />
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-              borderLeft: `1px solid ${C.border}`,
-              position: "relative",
-            }}
-          >
-            {activeTab === "text" && (
-              <TextTab
-                clips={filteredText}
-                onCtx={handleCtx}
-                onDoubleClick={handleDoubleClick}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-              />
-            )}
-            {activeTab === "images" && (
-              <ImagesTab
-                images={filteredImages}
-                onCtx={handleCtx}
-                onDoubleClick={handleDoubleClick}
-                gridCols={gridCols}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-              />
-            )}
-            {activeTab === "links" && (
-              <LinksTab
-                links={filteredLinks}
-                onCtx={handleCtx}
-                onDoubleClick={handleDoubleClick}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-              />
-            )}
-            {activeTab === "favs" && (
-              <FavsTab
-                clips={textClips}
-                onCtx={handleCtx}
-                onDoubleClick={handleDoubleClick}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-              />
-            )}
-            {activeTab === "colls" && (
-              <div
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: C.t3,
-                  fontSize: 13,
+        <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragEnd={handleDragEnd}>
+          <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+            <Sidebar
+              activeTab={activeTab}
+              onTab={(tab) => {
+                setActiveTab(tab);
+                setActiveCollectionId(null);
+              }}
+              onSettings={() => setSettOpen(true)}
+              onSystem={() => setSysOpen(true)}
+              onCapture={() => {
+                  invoke("start_screen_capture")
+                    .then(() => fire("Capture lancée ✓"))
+                    .catch((e) => fire(`Erreur capture : ${e}`));
                 }}
-              >
-                Collections — À venir
-              </div>
-            )}
-            <StatusBar count={tabCount[activeTab] ?? 0} tab={activeTab} />
-            {editor && (
-              <EditorPanel
-                item={editor.item}
-                itemType={editor.itemType}
-                onSave={handleSave}
-                onClose={() => setEditor(null)}
-              />
-            )}
+            />
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+                borderLeft: `1px solid ${C.border}`,
+                position: "relative",
+              }}
+            >
+              {/* CollectionBar is always visible above the main view unless searching or in favs */}
+              {activeTab !== "favs" && !search && (
+                <CollectionBar
+                  collections={activeTab === "colls" ? collections : collections.filter(g => g.origin_tab === activeTab)}
+                  activeCollectionId={activeCollectionId}
+                  onSelectCollection={setActiveCollectionId}
+                  onCreateCollection={() => setCreateCollectionOpen(true)}
+                  onDeleteCollection={deleteCollection}
+                  collectionClipCounts={collectionClipCounts}
+                />
+              )}
+
+              {activeTab === "text" && (
+                <TextTab
+                  clips={filteredText}
+                  onCtx={handleCtx}
+                  onDoubleClick={handleDoubleClick}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                />
+              )}
+              {activeTab === "images" && (
+                <ImagesTab
+                  images={filteredImages}
+                  onCtx={handleCtx}
+                  onDoubleClick={handleDoubleClick}
+                  gridCols={4}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                />
+              )}
+              {activeTab === "links" && (
+                <LinksTab
+                  links={filteredLinks}
+                  onCtx={handleCtx}
+                  onDoubleClick={handleDoubleClick}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                />
+              )}
+              {activeTab === "favs" && (
+                <FavsTab
+                  clips={textClips}
+                  onCtx={handleCtx}
+                  onDoubleClick={handleDoubleClick}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                />
+              )}
+              {activeTab === "colls" && (
+                <div
+                  style={{
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: C.t3,
+                    fontSize: 13,
+                    flexDirection: "column",
+                    gap: 12,
+                  }}
+                >
+                  <span style={{ fontSize: 48 }}>🗂️</span>
+                  <span>Toutes vos collections apparaissent dans la barre ci-dessus</span>
+                </div>
+              )}
+
+              <StatusBar count={tabCount[activeTab] ?? 0} tab={activeTab} />
+
+              {editor && (
+                <EditorPanel
+                  item={editor.item}
+                  itemType={editor.itemType}
+                  onSave={handleSave}
+                  onClose={() => setEditor(null)}
+                />
+              )}
+            </div>
           </div>
-        </div>
+        </DndContext>
 
         {ctx && (
           <CtxMenu
@@ -401,6 +372,11 @@ export default function App() {
             onThemeChange={setThemeName}
           />
         )}
+        <CreateCollectionModal
+          open={createCollectionOpen}
+          onClose={() => setCreateCollectionOpen(false)}
+          onCreate={(name, icon, color) => createCollection(name, icon, color, activeTab)}
+        />
         {toast && <Toast msg={toast} />}
       </div>
     </ThemeProvider>

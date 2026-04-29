@@ -11,6 +11,7 @@
 - 🔗 **Onglet Liens** — Détection et organisation automatique des URLs
 - 🖼️ **Onglet Images** — Historique des images copiées
 - ⭐ **Favoris** — Épinglez vos éléments les plus utilisés
+- 🗂️ **Collections** — Groupez vos éléments via Drag & Drop avec persistance garantie
 - 🎨 **Thèmes** — Personnalisation visuelle de l'interface
 - 🪟 **Overlay system** — Accès rapide via overlay flottant
 

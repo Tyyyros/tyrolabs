@@ -1,31 +1,64 @@
 export type ItemType = "text" | "image" | "link";
+export type TextClipType = "text" | "code" | "link";
+export type ClipType = TextClipType | "image";
 
 export type TabId = "text" | "images" | "links" | "favs" | "colls";
 
-export interface TextClip {
+interface BaseClip {
   id: number;
   text: string;
   date: string;
   time: string;
-  type: string;
   fav: boolean;
   pinned: boolean;
+  collection_id?: string | null;
+  sort_order?: number;
+}
+
+export interface Collection {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  origin_tab: string;
+}
+
+export interface TextClip {
+  id: BaseClip["id"];
+  text: BaseClip["text"];
+  date: BaseClip["date"];
+  time: BaseClip["time"];
+  type: TextClipType;
+  fav: BaseClip["fav"];
+  pinned: BaseClip["pinned"];
+  collection_id?: string | null;
+  sort_order?: number;
 }
 
 export interface ImageClip {
-  id: number;
-  text: string;
-  date: string;
-  time: string;
-  type: string;
-  fav: boolean;
-  pinned: boolean;
+  id: BaseClip["id"];
+  text: BaseClip["text"];
+  date: BaseClip["date"];
+  time: BaseClip["time"];
+  type: "image";
+  fav: BaseClip["fav"];
+  pinned: BaseClip["pinned"];
   hash: string;
   dims: string;
   hue: number;
+  collection_id?: string | null;
+  sort_order?: number;
 }
 
 export type AnyClip = TextClip | ImageClip;
+
+export function isImageClip(clip: AnyClip): clip is ImageClip {
+  return clip.type === "image";
+}
+
+export function isTextClip(clip: AnyClip): clip is TextClip {
+  return clip.type !== "image";
+}
 
 export interface Theme {
   id: string;
