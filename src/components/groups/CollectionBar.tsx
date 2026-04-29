@@ -2,6 +2,7 @@ import { useState } from "react";
 import { C, hexToRgba } from "../../lib/colors";
 import { useTheme } from "../../lib/theme";
 import { Ic } from "../icons";
+import { ConfirmationModal } from "./ConfirmationModal";
 import type { Collection } from "../../types";
 import { useDroppable } from "@dnd-kit/core";
 
@@ -75,9 +76,7 @@ function CollectionSlot({
         <div
           onClick={(e) => {
             e.stopPropagation();
-            if (window.confirm("Es-tu sûr de vouloir supprimer cette collection ? Les éléments à l'intérieur ne seront pas supprimés mais ils ne seront plus regroupés.")) {
-              onDelete();
-            }
+            onDelete();
           }}
           style={{
             display: "flex",
@@ -122,6 +121,7 @@ export function CollectionBar({
   collectionClipCounts,
 }: Props) {
   const [addHov, setAddHov] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const theme = useTheme();
 
   if (collections.length === 0 && !activeCollectionId) {
@@ -232,11 +232,24 @@ export function CollectionBar({
             collection={g}
             active={activeCollectionId === g.id}
             onClick={() => onSelectCollection(activeCollectionId === g.id ? null : g.id)}
-            onDelete={() => onDeleteCollection(g.id)}
+            onDelete={() => setDeleteConfirmId(g.id)}
             count={collectionClipCounts[g.id] ?? 0}
           />
         ))}
       </>
+
+      <ConfirmationModal
+        open={!!deleteConfirmId}
+        title="Supprimer la collection ?"
+        message="Es-tu sûr de vouloir supprimer cette collection ? Les éléments à l'intérieur ne seront pas supprimés mais ils ne seront plus regroupés."
+        onConfirm={() => {
+          if (deleteConfirmId) {
+            onDeleteCollection(deleteConfirmId);
+            setDeleteConfirmId(null);
+          }
+        }}
+        onCancel={() => setDeleteConfirmId(null)}
+      />
     </div>
   );
 }

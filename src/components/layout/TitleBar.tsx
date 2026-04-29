@@ -1,4 +1,5 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useTheme } from "../../lib/theme";
@@ -7,8 +8,6 @@ import { Ic, TyroLogo } from "../icons";
 import { WinBtn } from "./WinBtn";
 
 const win = getCurrentWindow();
-
-const EXPAND_THRESHOLD = 880;
 
 interface Props {
   pinned: boolean;
@@ -19,15 +18,7 @@ interface Props {
 
 export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
   const theme = useTheme();
-  const [animKey, setAnimKey] = useState(0);
-  const [hov, setHov] = useState(false);
-  const [wide, setWide] = useState(() => window.innerWidth >= EXPAND_THRESHOLD);
-
-  useEffect(() => {
-    const h = () => setWide(window.innerWidth >= EXPAND_THRESHOLD);
-    window.addEventListener("resize", h);
-    return () => window.removeEventListener("resize", h);
-  }, []);
+  const [searchFocused, setSearchFocused] = useState(false);
 
   useEffect(() => {
     console.log("[Pin] useEffect fired, pinned =", pinned);
@@ -36,13 +27,7 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
       .catch((e) => console.error("[Pin] invoke FAILED:", e));
   }, [pinned]);
 
-  const expand = hov && wide;
 
-  const handleEnter = () => {
-    setHov(true);
-    setAnimKey((k) => k + 1);
-  };
-  const handleLeave = () => setHov(false);
 
   return (
     <div
@@ -53,33 +38,26 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
         display: "flex",
         alignItems: "center",
         padding: "0 14px",
-        gap: 12,
+        justifyContent: "space-between",
         flexShrink: 0,
         userSelect: "none",
+        position: "relative",
         borderBottom: `1px solid ${C.border}`,
       }}
     >
-      {/* Logo */}
-      <div
-        data-tauri-drag-region
-        onMouseEnter={handleEnter}
-        onMouseLeave={handleLeave}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          flexShrink: 0,
-          minWidth: wide ? 140 : 0,
-          cursor: "default",
-        }}
-      >
-        <span
-          key={`star-${animKey}`}
+      {/* Left section: Logo + Separator */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {/* Logo */}
+        <div
+          data-tauri-drag-region
           style={{
-            display: "inline-flex",
-            animation: expand ? "star-flipY 0.65s cubic-bezier(.4,0,.2,1) forwards" : "none",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            cursor: "default",
           }}
         >
+        <span style={{ display: "inline-flex" }}>
           <TyroLogo size={24} color={theme.accent} />
         </span>
 
@@ -95,28 +73,17 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
           }}
         >
           <span style={{ color: theme.accent, opacity: 0.8 }}>{theme.logoPrefix}</span>
-
           <span
-            key={`txt-${animKey}-${expand ? "exp" : "col"}`}
-            style={
-              {
-                display: "inline-block",
-                overflow: "hidden",
-                whiteSpace: "nowrap",
-                "--logo-ls": theme.logoLetterSpacing,
-                animation: expand
-                  ? "brackets-open 0.5s cubic-bezier(.4,0,.2,1) forwards, logo-glow 0.7s ease forwards"
-                  : "none",
-                maxWidth: 180,
-                letterSpacing: theme.logoLetterSpacing,
-                color: C.t1,
-              } as CSSProperties
-            }
+            style={{
+              display: "inline-block",
+              letterSpacing: theme.logoLetterSpacing,
+              color: C.t1,
+            }}
           >
-            {expand ? "TYROLABS" : "TLS"}
+            TYROLABS
           </span>
 
-          <span style={{ color: theme.accent, opacity: 0.8 }}>{theme.logoSuffix}</span>
+        <span style={{ color: theme.accent, opacity: 0.8 }}>{theme.logoSuffix}</span>
         </span>
       </div>
 
@@ -131,14 +98,28 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
           flexShrink: 0,
         }}
       />
+      </div>
 
-      {/* Search */}
+      {/* Search Container (Absolute Center) */}
       <div
         data-tauri-drag-region
-        style={{ flex: 1, display: "flex", justifyContent: "center", minWidth: 0 }}
+        style={{
+          position: "absolute",
+          left: "50%",
+          transform: "translateX(-50%)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 10,
+          pointerEvents: "none",
+        }}
       >
-        <div
-          data-tauri-drag-region
+        <motion.div
+          animate={{
+            width: searchFocused || search ? 360 : 160,
+            borderColor: searchFocused ? theme.accent : C.border,
+          }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
           style={{
             display: "flex",
             alignItems: "center",
@@ -147,14 +128,17 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
             border: `1px solid ${C.border}`,
             borderRadius: 8,
             padding: "6px 12px",
-            width: "100%",
-            maxWidth: 480,
+            overflow: "hidden",
+            position: "relative",
+            pointerEvents: "auto",
           }}
         >
-          <Ic.Search width={18} height={18} style={{ color: C.t3, flexShrink: 0 }} />
+          <Ic.Search width={18} height={18} style={{ color: searchFocused ? theme.accent : C.t3, flexShrink: 0 }} />
           <input
             value={search}
             onChange={(e) => onSearch(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
             placeholder="Rechercher..."
             style={{
               background: "none",
@@ -178,12 +162,14 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
                 padding: 0,
                 lineHeight: 1,
                 display: "flex",
+                position: "absolute",
+                right: 12,
               }}
             >
               <Ic.X width={16} height={16} />
             </button>
           )}
-        </div>
+        </motion.div>
       </div>
 
       {/* Controls */}
