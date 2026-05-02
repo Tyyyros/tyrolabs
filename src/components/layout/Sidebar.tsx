@@ -49,7 +49,7 @@ function SbBtn({ Icon, label, active, onClick }: SbBtnProps) {
         border: "none",
         borderLeft: active ? `2px solid ${C.accent}` : "2px solid transparent",
         cursor: "pointer",
-        color: active ? C.accent : hov ? C.t1 : "#A1A1AA",
+        color: active ? theme.accent : hov ? "var(--t1)" : `rgba(${theme.accentRGB}, 0.7)`,
         transition: "all 0.12s",
         flexShrink: 0,
       }}
@@ -67,8 +67,6 @@ function CaptureBtn({ onCapture }: { onCapture: () => void }) {
   const timerRef = useRef<number | null>(null);
 
   const startCapture = () => {
-    setCountdown(null);
-    if (timerRef.current) clearInterval(timerRef.current);
     onCapture();
     setShowMenu(false);
   };
@@ -76,14 +74,15 @@ function CaptureBtn({ onCapture }: { onCapture: () => void }) {
   const startDelayed = () => {
     setShowMenu(false);
     setCountdown(5);
+    
+    if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = window.setInterval(() => {
       setCountdown((c) => {
-        if (c === 1) {
-          clearInterval(timerRef.current!);
-          onCapture();
-          return null;
-        }
-        return c ? c - 1 : null;
+        if (c !== null && c > 1) return c - 1;
+        if (timerRef.current) clearInterval(timerRef.current);
+        timerRef.current = null;
+        onCapture(); // Trigger now
+        return null;
       });
     }, 1000);
   };
@@ -94,11 +93,19 @@ function CaptureBtn({ onCapture }: { onCapture: () => void }) {
     };
   }, []);
 
+  // Close menu on click outside
+  useEffect(() => {
+    if (!showMenu) return;
+    const close = () => setShowMenu(false);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [showMenu]);
+
   return (
     <div 
       style={{ position: "relative" }}
       onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => { setHov(false); setShowMenu(false); }}
+      onMouseLeave={() => setHov(false)}
     >
       <button
         onClick={() => (countdown === null ? startCapture() : null)}
@@ -109,17 +116,20 @@ function CaptureBtn({ onCapture }: { onCapture: () => void }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: hov ? "rgba(255,255,255,0.035)" : "transparent",
+          background: hov
+            ? `rgba(${theme.accentRGB}, 0.15)`
+            : `rgba(${theme.accentRGB}, 0.08)`,
           border: "none",
           cursor: countdown === null ? "pointer" : "default",
-          color: hov ? C.t1 : "#A1A1AA",
+          color: hov ? theme.accent : `rgba(${theme.accentRGB}, 0.7)`,
           transition: "all 0.12s",
           position: "relative",
           flexShrink: 0,
         }}
       >
+
         {countdown !== null ? (
-          <span style={{ fontSize: 16, fontWeight: "bold", color: C.accent }}>{countdown}</span>
+          <span style={{ fontSize: 16, fontWeight: "bold", color: theme.accent }}>{countdown}</span>
         ) : (
           <Ic.Camera width={SB_ICON} height={SB_ICON} strokeWidth={theme.iconStroke} />
         )}
@@ -131,14 +141,25 @@ function CaptureBtn({ onCapture }: { onCapture: () => void }) {
           }}
           style={{
             position: "absolute",
-            right: 4,
-            bottom: 4,
-            opacity: hov ? 0.6 : 0,
-            transition: "opacity 0.2s",
+            right: -4,
+            bottom: -6,
+            padding: 5,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             cursor: "pointer",
+            transition: "all 0.15s",
+            color: theme.accent,
+            opacity: hov || showMenu ? 1 : 0.4,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "scale(1.2)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "scale(1)";
           }}
         >
-          <Ic.ChevD width={8} height={8} />
+          <Ic.ChevD width={14} height={14} strokeWidth={3} />
         </div>
       </button>
 
@@ -199,6 +220,7 @@ interface Props {
   onSettings: () => void;
   onSystem: () => void;
   onCapture: () => void;
+  autoCap: boolean;
 }
 
 export function Sidebar({ activeTab, onTab, onSettings, onSystem, onCapture }: Props) {
@@ -210,6 +232,7 @@ export function Sidebar({ activeTab, onTab, onSettings, onSystem, onCapture }: P
         display: "flex",
         flexDirection: "column",
         flexShrink: 0,
+        borderRight: `1px solid ${C.border}`,
       }}
     >
       <div style={{ flex: 1, paddingTop: 4, overflowY: "auto", overflowX: "hidden" }}>

@@ -1,162 +1,130 @@
-import { useEffect, useMemo, useState } from "react";
-import type { AnyClip, ItemType, TabId, TextClip, ThemeId } from "./types";
-import { THEMES } from "./themes";
+import { useState, useMemo, useEffect } from "react";
+import React from "react";
 import { ThemeProvider } from "./lib/theme";
+import { THEMES } from "./themes";
 import { C } from "./lib/colors";
-import { useClipboardStore } from "./lib/clipboard-store";
-import { invoke } from "@tauri-apps/api/core";
-import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors, pointerWithin } from "@dnd-kit/core";
-import { CollectionBar } from "./components/groups/CollectionBar";
-import { CreateCollectionModal } from "./components/groups/CreateCollectionModal";
-
+import { Ic } from "./components/icons";
 import { TitleBar } from "./components/layout/TitleBar";
 import { Sidebar } from "./components/layout/Sidebar";
-import { StatusBar } from "./components/layout/StatusBar";
-
+import { CollectionBar } from "./components/groups/CollectionBar";
 import { TextTab } from "./components/tabs/TextTab";
 import { ImagesTab } from "./components/tabs/ImagesTab";
 import { LinksTab } from "./components/tabs/LinksTab";
-import { FavsTab } from "./components/tabs/FavsTab";
-
 import { CtxMenu, type CtxHandlers } from "./components/overlays/CtxMenu";
 import { SysDrawer } from "./components/overlays/SysDrawer";
 import { Settings } from "./components/overlays/Settings";
-import { EditorPanel } from "./components/overlays/EditorPanel";
-
 import { Toast } from "./components/ui/Toast";
+import { CreateCollectionModal } from "./components/groups/CreateCollectionModal";
+import { EditorPanel } from "./components/overlays/EditorPanel";
+import { useClipboardStore } from "./lib/clipboard-store";
+import { type TabId, type ItemType, type ThemeId, type AnyClip, type TextClip, type ImageClip } from "./types";
+import { DndContext, rectIntersection, PointerSensor, useSensor, useSensors, DragOverlay, type DragStartEvent, type DragEndEvent } from "@dnd-kit/core";
+import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 
-interface CtxState {
-  x: number;
-  y: number;
-  item: AnyClip;
-  itemType: ItemType;
-}
+const TOAST_MS = 2400;
 
-interface EditorState {
-  item: TextClip;
-  itemType: ItemType;
-}
-
-function isLinkOrPath(text: string): boolean {
-  if (/^https?:\/\//i.test(text)) return true;
-  if (/^ftp:\/\//i.test(text)) return true;
-  if (/^file:\/\/\//i.test(text)) return true;
-  if (/^[A-Za-z]:\\/i.test(text)) return true;
-  if (/^\\\\/.test(text)) return true;
+export function isLinkOrPath(text: string) {
+  const t = text.trim();
+  if (t.startsWith("http://") || t.startsWith("https://")) return true;
+  if (/^[a-zA-Z]:\\/.test(t) || t.startsWith("\\\\")) return true;
+  if (t.includes(".") && !t.includes(" ") && t.length > 4) {
+     const ext = t.split(".").pop()?.toLowerCase();
+     if (ext && ext.length >= 2 && ext.length <= 4) return true;
+  }
   return false;
 }
 
-const TOAST_MS = 2200;
-
 export default function App() {
-  const [themeName, setThemeName] = useState<ThemeId>("command");
   const [activeTab, setActiveTab] = useState<TabId>("text");
-  const [winPinned, setWinPinned] = useState(true);
   const [search, setSearch] = useState("");
-  const [ctx, setCtx] = useState<CtxState | null>(null);
+  const [ctx, setCtx] = useState<{ x: number; y: number; item: AnyClip; itemType: ItemType } | null>(null);
+  const [themeName, setThemeName] = useState<ThemeId>("command");
   const [sysOpen, setSysOpen] = useState(false);
   const [settOpen, setSettOpen] = useState(false);
-  const [editor, setEditor] = useState<EditorState | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [toast, setToast] = useState("");
+  const [selection, setSelection] = useState<Set<number>>(new Set());
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null);
   const [createCollectionOpen, setCreateCollectionOpen] = useState(false);
+  const [autoCap, setAutoCap] = useState(true);
+  const [activeDragItem, setActiveDragItem] = useState<{ id: number; type: ItemType } | null>(null);
+  const [editingItem, setEditingItem] = useState<{ item: AnyClip; type: ItemType } | null>(null);
+  const [alwaysOnTop, setAlwaysOnTop] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   const {
     textClips,
     imageClips,
     collections,
-    copyClip,
     copyAndPromoteClip,
     togglePinned,
-    deleteClip,
-    openClip,
+    deleteClips,
     updateTextClip,
     createCollection,
+    updateCollection,
     deleteCollection,
-    setClipCollection,
-    reorderInCollection,
+    setClipsCollection,
+    openClip,
   } = useClipboardStore();
 
   const theme = THEMES[themeName];
   const fire = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(""), TOAST_MS);
+    setTimeout(() => setToast(null), TOAST_MS);
   };
 
   useEffect(() => {
     const closeCtx = () => setCtx(null);
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSelection(new Set());
+        setCtx(null);
+        setEditingItem(null);
+      }
+    };
     document.addEventListener("click", closeCtx);
-    return () => document.removeEventListener("click", closeCtx);
+    document.addEventListener("keydown", handleEsc);
+    return () => {
+      document.removeEventListener("click", closeCtx);
+      document.removeEventListener("keydown", handleEsc);
+    };
   }, []);
 
-  const handleCtx = ({
-    e,
-    item,
-    itemType,
-  }: {
-    e: React.MouseEvent;
-    item: AnyClip;
-    itemType: ItemType;
-  }) => {
-    e.preventDefault();
-    setCtx({ x: e.clientX, y: e.clientY, item, itemType });
-  };
+  useEffect(() => {
+    const unlisten = listen("open-settings", () => setSettOpen(true));
+    return () => { unlisten.then(f => f()); };
+  }, []);
 
-  const handleDoubleClick = (id: number, itemType: ItemType) => {
-    copyAndPromoteClip(id, itemType)
-      .then((didCopy) => {
-        if (didCopy) fire("Copié + remonté en tête ↑");
-      })
-      .catch(console.error);
-  };
-
-  const buildHandlers = (item: AnyClip, itemType: ItemType): CtxHandlers => ({
-    copy: () => {
-      copyClip(item, itemType)
-        .then(() => fire("Copié ✓"))
-        .catch(console.error);
-      setCtx(null);
-    },
-    edit: () => {
-      if (itemType === "image") {
-        fire("Ouverture dans Paint...");
-      } else {
-        setEditor({ item: item as TextClip, itemType });
+  const handleSelect = (id: number, e: React.MouseEvent, list: AnyClip[]) => {
+    const isMulti = e.ctrlKey || e.metaKey;
+    const isShift = e.shiftKey;
+    if (isMulti) {
+      setSelection(prev => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+      setSelectedId(id);
+    } else if (isShift && selectedId !== null) {
+      const idxA = list.findIndex(c => c.id === selectedId);
+      const idxB = list.findIndex(c => c.id === id);
+      if (idxA !== -1 && idxB !== -1) {
+        const start = Math.min(idxA, idxB);
+        const end = Math.max(idxA, idxB);
+        const range = list.slice(start, end + 1).map(c => c.id);
+        setSelection(new Set([...Array.from(selection), ...range]));
       }
-      setCtx(null);
-    },
-    pin: () => {
-      togglePinned(item.id, itemType);
-      fire(item.pinned ? "Désépinglé" : "Épinglé ✓");
-      setCtx(null);
-    },
-    delete: () => {
-      deleteClip(item.id, itemType);
-      fire("Supprimé");
-      setCtx(null);
-    },
-    copyPlain: () => {
-      copyClip(item, itemType)
-        .then(() => fire("Texte brut copié ✓"))
-        .catch(console.error);
-      setCtx(null);
-    },
-    open: () => {
-      openClip(item, itemType);
-      if (itemType === "link") fire("Ouverture en cours...");
-      if (itemType === "image") fire("Ouverture dans Paint...");
-      setCtx(null);
-    },
-  });
-
-  const handleSave = (id: number, text: string, itemType: ItemType, copyAfter?: boolean) => {
-    updateTextClip(id, text, itemType, copyAfter)
-      .then(() => fire(copyAfter ? "Enregistré et copié ✓" : "Enregistré ✓"))
-      .catch(console.error);
+      setSelectedId(id);
+    } else {
+      if (!selection.has(id)) {
+        setSelection(new Set([id]));
+        setSelectedId(id);
+      }
+    }
   };
 
-  const collectionClipCounts = useMemo(() => {
+  const collectionCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     const countClips = (c: AnyClip) => {
       if (c.collection_id) counts[c.collection_id] = (counts[c.collection_id] || 0) + 1;
@@ -170,213 +138,195 @@ export default function App() {
   const baseImages = useMemo(() => activeCollectionId ? imageClips.filter(c => c.collection_id === activeCollectionId).sort((a,b) => (a.sort_order || 0) - (b.sort_order || 0)) : imageClips.filter(c => !c.collection_id), [imageClips, activeCollectionId]);
 
   const q = search.toLowerCase();
-  const filteredText = useMemo(
-    () => (!search ? baseText : baseText.filter((clip) => clip.text.toLowerCase().includes(q))),
-    [q, search, baseText],
-  );
-  const filteredImages = useMemo(
-    () => (!search ? baseImages : baseImages.filter((clip) => clip.hash.toLowerCase().includes(q))),
-    [baseImages, q, search],
-  );
-  const autoLinks = useMemo(() => textClips.filter((clip) => isLinkOrPath(clip.text)), [textClips]);
-  const filteredLinks = useMemo(
-    () => (!search ? autoLinks : autoLinks.filter((clip) => clip.text.toLowerCase().includes(q))),
-    [autoLinks, q, search],
-  );
+  const filterByQuery = (clips: AnyClip[]) => {
+    if (!search) return clips;
+    return clips.filter(c => {
+      if (c.type !== "image") return c.text.toLowerCase().includes(q);
+      return ("hash" in c) && c.hash.toLowerCase().includes(q);
+    });
+  };
+
+  const filteredText = useMemo(() => filterByQuery(baseText) as TextClip[], [q, baseText]);
+  const filteredImages = useMemo(() => filterByQuery(baseImages) as ImageClip[], [baseImages, q]);
+  const autoLinks = useMemo(() => baseText.filter(c => isLinkOrPath(c.text)), [baseText]);
+  const filteredLinks = useMemo(() => filterByQuery(autoLinks) as TextClip[], [autoLinks, q]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
+  const handleDragStart = (e: DragStartEvent) => {
+    const clipId = e.active.data.current?.clipId;
+    const type = e.active.data.current?.type;
+    if (clipId && type) setActiveDragItem({ id: clipId, type });
+  };
+
+  const handleDragEnd = (e: DragEndEvent) => {
+    setActiveDragItem(null);
+    const { active, over } = e;
     if (!over) return;
-    
-    // Drop on a collection slot
-    if (over.id.toString().startsWith("collection-drop-")) {
-      const collectionId = over.data.current?.collectionId;
-      const clipId = active.data.current?.clipId;
-      if (collectionId && clipId !== undefined) {
-        setClipCollection(clipId, collectionId, 0).then(() => fire("Déplacé vers la collection ✓"));
-      }
-    }
-    // Drop to reorder inside collection
-    else if (activeCollectionId && over.id !== active.id) {
-       const clipId = active.data.current?.clipId;
-       const overId = over.data.current?.clipId;
-       const type = active.data.current?.type;
-       if (clipId && overId && type) {
-          const list = type === "text" || type === "link" ? (type === "link" ? filteredLinks : filteredText) : filteredImages;
-          const oldIndex = list.findIndex(c => c.id === clipId);
-          const newIndex = list.findIndex(c => c.id === overId);
-          if (oldIndex !== -1 && newIndex !== -1) {
-             const newList = [...list];
-             const [moved] = newList.splice(oldIndex, 1);
-             newList.splice(newIndex, 0, moved);
-             reorderInCollection(newList.map(c => c.id));
-          }
-       }
+
+    const collectionId = over.data.current?.collectionId;
+    const draggedClipId = active.data.current?.clipId;
+
+    if (collectionId && draggedClipId) {
+      const clipIds = selection.has(draggedClipId) ? Array.from(selection) : [draggedClipId];
+      setClipsCollection(clipIds, collectionId).then(() => {
+        fire(`${clipIds.length} élément${clipIds.length > 1 ? "s" : ""} déplacé${clipIds.length > 1 ? "s" : ""} ✓`);
+        setSelection(new Set());
+      }).catch(err => {
+        console.error("Move failed:", err);
+        fire("Erreur lors du déplacement");
+      });
     }
   };
 
-  const tabCount: Record<TabId, number> = {
-    text: filteredText.length,
-    images: filteredImages.length,
-    links: filteredLinks.length,
-    favs: textClips.filter((clip) => clip.fav).length,
-    colls: 0,
+  const handleBatchDelete = () => {
+    if (selection.size > 0) {
+      const type: ItemType = activeTab === "images" ? "image" : activeTab === "links" ? "link" : "text";
+      deleteClips(Array.from(selection), type);
+      setSelection(new Set());
+      fire(`${selection.size} éléments supprimés ✓`);
+    }
   };
+
+  const handleBatchCopy = () => {
+    if (selection.size > 0) {
+      const type: ItemType = activeTab === "images" ? "image" : activeTab === "links" ? "link" : "text";
+      const items = type === "image" ? filteredImages : type === "link" ? filteredLinks : filteredText;
+      const selected = items.filter(c => selection.has(c.id));
+      if (selected.length === 0) return;
+      if (type === "image") {
+        const imgClip = selected[0] as ImageClip;
+        invoke("copy_image_to_clipboard", { hash: imgClip.hash })
+          .then(() => fire(selected.length > 1 ? "1ère image copiée (sélection multiple)" : "Image copiée ✓"))
+          .catch(console.error);
+      } else {
+        const text = selected.map(c => c.text).join("\n");
+        navigator.clipboard.writeText(text).then(() => {
+          invoke("suppress_next", { text }).catch(() => {});
+          invoke("add_manual_clip", { text })
+            .then(() => fire(`${selected.length} éléments fusionnés ✓`))
+            .catch(console.error);
+        });
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
+
+      if (e.key === "Delete") handleBatchDelete();
+      if (e.key === "c" && (e.ctrlKey || e.metaKey)) {
+        if (selection.size > 1) {
+          e.preventDefault();
+          handleBatchCopy();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [selection, activeTab, filteredText, filteredImages, filteredLinks]);
+
+  const handleCapture = () => {
+    invoke("open_capture_overlay").catch(console.error);
+  };
+
+  const handleDoubleClick = (id: number, type: ItemType) => {
+    copyAndPromoteClip(id, type).then(() => {
+      fire(type === "image" ? "Image copiée ✓" : "Copié ✓");
+    });
+  };
+
+  const handleCtx = ({ e, item, itemType }: { e: React.MouseEvent; item: AnyClip; itemType: ItemType }) => {
+    e.preventDefault();
+    setSelectedId(item.id);
+    setCtx({ x: e.clientX, y: e.clientY, item, itemType });
+  };
+
+  const getHandlers = (item: AnyClip, type: ItemType): CtxHandlers => {
+    const isTextual = type === "text" || type === "link";
+    return {
+      copy: () => { setCtx(null); handleDoubleClick(item.id, type); },
+      pin: () => { setCtx(null); togglePinned(item.id, isTextual ? "text" : "image"); },
+      delete: () => { setCtx(null); deleteClips([item.id], isTextual ? "text" : "image"); },
+      edit: () => { setCtx(null); setEditingItem({ item, type }); },
+      copyPlain: isTextual ? () => { setCtx(null); navigator.clipboard.writeText((item as TextClip).text).then(() => fire("Texte brut copié ✓")); } : undefined,
+      open: type === "image"
+        ? () => { setCtx(null); openClip(item, "image"); }
+        : type === "link"
+          ? () => { setCtx(null); openClip(item, "link"); }
+          : undefined,
+    };
+  };
+
+
 
   return (
     <ThemeProvider theme={theme}>
-      <div
-        style={{
-          width: "100vw",
-          height: "100vh",
-          background: "var(--bg)",
-          display: "flex",
-          flexDirection: "column",
-          fontFamily: theme.fontUI,
-          color: C.t1,
-          overflow: "hidden",
-          position: "relative",
-          transition: "background 0.3s",
-        }}
-      >
+      <div style={{ width: "100vw", height: "100vh", background: "var(--bg)", display: "flex", flexDirection: "column", fontFamily: theme.fontUI, color: C.t1, overflow: "hidden" }}>
         <TitleBar
-          pinned={winPinned}
-          onPin={() => setWinPinned((p) => !p)}
+          pinned={alwaysOnTop}
+          onPin={() => setAlwaysOnTop(!alwaysOnTop)}
           search={search}
           onSearch={setSearch}
         />
-
-        <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragEnd={handleDragEnd}>
-          <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-            <Sidebar
-              activeTab={activeTab}
-              onTab={(tab) => {
-                setActiveTab(tab);
-                setActiveCollectionId(null);
-              }}
-              onSettings={() => setSettOpen(true)}
-              onSystem={() => setSysOpen(true)}
-              onCapture={() => {
-                  invoke("start_screen_capture")
-                    .then(() => fire("Capture lancée ✓"))
-                    .catch((e) => fire(`Erreur capture : ${e}`));
-                }}
-            />
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                overflow: "hidden",
-                borderLeft: `1px solid ${C.border}`,
-                position: "relative",
-              }}
-            >
-              {/* CollectionBar is always visible above the main view unless searching or in favs */}
-              {activeTab !== "favs" && !search && (
-                <CollectionBar
-                  collections={activeTab === "colls" ? collections : collections.filter(g => g.origin_tab === activeTab)}
-                  activeCollectionId={activeCollectionId}
-                  onSelectCollection={setActiveCollectionId}
-                  onCreateCollection={() => setCreateCollectionOpen(true)}
-                  onDeleteCollection={deleteCollection}
-                  collectionClipCounts={collectionClipCounts}
-                />
-              )}
-
-              {activeTab === "text" && (
-                <TextTab
-                  clips={filteredText}
-                  onCtx={handleCtx}
-                  onDoubleClick={handleDoubleClick}
-                  selectedId={selectedId}
-                  onSelect={setSelectedId}
-                />
-              )}
-              {activeTab === "images" && (
-                <ImagesTab
-                  images={filteredImages}
-                  onCtx={handleCtx}
-                  onDoubleClick={handleDoubleClick}
-                  gridCols={4}
-                  selectedId={selectedId}
-                  onSelect={setSelectedId}
-                />
-              )}
-              {activeTab === "links" && (
-                <LinksTab
-                  links={filteredLinks}
-                  onCtx={handleCtx}
-                  onDoubleClick={handleDoubleClick}
-                  selectedId={selectedId}
-                  onSelect={setSelectedId}
-                />
-              )}
-              {activeTab === "favs" && (
-                <FavsTab
-                  clips={textClips}
-                  onCtx={handleCtx}
-                  onDoubleClick={handleDoubleClick}
-                  selectedId={selectedId}
-                  onSelect={setSelectedId}
-                />
-              )}
-              {activeTab === "colls" && (
-                <div
-                  style={{
-                    flex: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: C.t3,
-                    fontSize: 13,
-                    flexDirection: "column",
-                    gap: 12,
-                  }}
-                >
-                  <span style={{ fontSize: 48 }}>🗂️</span>
-                  <span>Toutes vos collections apparaissent dans la barre ci-dessus</span>
-                </div>
-              )}
-
-              <StatusBar count={tabCount[activeTab] ?? 0} tab={activeTab} />
-
-              {editor && (
+        <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+          <Sidebar
+            activeTab={activeTab}
+            onTab={setActiveTab}
+            onSettings={() => setSettOpen(true)}
+            onSystem={() => setSysOpen(true)}
+            onCapture={handleCapture}
+            autoCap={autoCap}
+          />
+          <main style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column", minWidth: 0, background: "var(--bg)" }}>
+            <DndContext sensors={sensors} collisionDetection={rectIntersection} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+              <CollectionBar
+                collections={collections}
+                activeCollectionId={activeCollectionId}
+                onSelectCollection={setActiveCollectionId}
+                onCreateCollection={() => setCreateCollectionOpen(true)}
+                onDeleteCollection={deleteCollection}
+                onRenameCollection={(id, name) => updateCollection(id, name, "", "")}
+                collectionClipCounts={collectionCounts}
+              />
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                {activeTab === "text" && <TextTab clips={filteredText} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selectedId={selectedId} selection={selection} onSelect={handleSelect} />}
+                {activeTab === "images" && <ImagesTab images={filteredImages} gridCols={3} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selectedId={selectedId} selection={selection} onSelect={handleSelect} />}
+                {activeTab === "links" && <LinksTab links={filteredLinks} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selectedId={selectedId} selection={selection} onSelect={handleSelect} />}
+                {activeTab === "favs" && (
+                  <div style={{ flex: 1, overflowY: "auto" }}>
+                    <TextTab clips={textClips.filter(c => c.pinned)} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selectedId={selectedId} selection={selection} onSelect={handleSelect} />
+                    <ImagesTab images={imageClips.filter(c => c.pinned)} gridCols={3} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selectedId={selectedId} selection={selection} onSelect={handleSelect} />
+                  </div>
+                )}
+                <DragOverlay>
+                  {activeDragItem && (
+                    <div style={{ height: 34, display: "flex", alignItems: "center", padding: "0 12px 0 2px", background: C.accent, color: "#fff", borderRadius: 8, fontSize: 13, fontWeight: 600, boxShadow: "0 8px 24px rgba(0,0,0,0.4)", gap: 10, pointerEvents: "none", transform: "scale(1.05)" }}>
+                      {activeDragItem.type === "image" ? <Ic.Image width={16} height={16} /> : <Ic.Text width={16} height={16} />}
+                      <span>{selection.size > 1 ? `${selection.size} éléments` : "1 élément"}</span>
+                    </div>
+                  )}
+                </DragOverlay>
+              </div>
+              {editingItem && (
                 <EditorPanel
-                  item={editor.item}
-                  itemType={editor.itemType}
-                  onSave={handleSave}
-                  onClose={() => setEditor(null)}
+                  item={editingItem.item}
+                  itemType={editingItem.type}
+                  onClose={() => setEditingItem(null)}
+                  onSave={(id, text, type, copyAfter) => {
+                    updateTextClip(id, text, type as ItemType, copyAfter);
+                    fire("Modifications enregistrées ✓");
+                  }}
                 />
               )}
-            </div>
-          </div>
-        </DndContext>
-
-        {ctx && (
-          <CtxMenu
-            x={ctx.x}
-            y={ctx.y}
-            item={ctx.item}
-            itemType={ctx.itemType}
-            handlers={buildHandlers(ctx.item, ctx.itemType)}
-          />
-        )}
+            </DndContext>
+          </main>
+        </div>
+        {ctx && <CtxMenu x={ctx.x} y={ctx.y} item={ctx.item} itemType={ctx.itemType} handlers={getHandlers(ctx.item, ctx.itemType)} />}
         {sysOpen && <SysDrawer onClose={() => setSysOpen(false)} />}
-        {settOpen && (
-          <Settings
-            onClose={() => setSettOpen(false)}
-            themeName={themeName}
-            onThemeChange={setThemeName}
-          />
-        )}
-        <CreateCollectionModal
-          open={createCollectionOpen}
-          onClose={() => setCreateCollectionOpen(false)}
-          onCreate={(name, icon, color) => createCollection(name, icon, color, activeTab)}
-        />
+        {settOpen && <Settings onClose={() => setSettOpen(false)} themeName={themeName} onThemeChange={setThemeName} autoCap={autoCap} onAutoCapChange={setAutoCap} />}
+        <CreateCollectionModal open={createCollectionOpen} onClose={() => setCreateCollectionOpen(false)} onCreate={(name, icon, color) => createCollection(name, icon, color, activeTab)} />
         {toast && <Toast msg={toast} />}
       </div>
     </ThemeProvider>

@@ -9,7 +9,7 @@ interface BaseClip {
   text: string;
   date: string;
   time: string;
-  fav: boolean;
+  fav?: boolean;
   pinned: boolean;
   collection_id?: string | null;
   sort_order?: number;
@@ -29,7 +29,7 @@ export interface TextClip {
   date: BaseClip["date"];
   time: BaseClip["time"];
   type: TextClipType;
-  fav: BaseClip["fav"];
+  fav?: BaseClip["fav"];
   pinned: BaseClip["pinned"];
   collection_id?: string | null;
   sort_order?: number;
@@ -41,7 +41,7 @@ export interface ImageClip {
   date: BaseClip["date"];
   time: BaseClip["time"];
   type: "image";
-  fav: BaseClip["fav"];
+  fav?: BaseClip["fav"];
   pinned: BaseClip["pinned"];
   hash: string;
   dims: string;
@@ -74,6 +74,28 @@ export interface Theme {
   logoLetterSpacing: string;
   bg: string;
   sidebar: string;
+  light?: boolean;
+  /** Override tokens for light mode */
+  t1?: string;
+  t2?: string;
+  t3?: string;
+  border?: string;
+  borderDim?: string;
+  rowHov?: string;
 }
 
-export type ThemeId = "command" | "neon" | "obsidian" | "arctic" | "carbon";
+export type ThemeId = "command" | "neon" | "obsidian" | "arctic" | "carbon"
+  | "daylight" | "cream" | "sakura" | "mint" | "cloud";
+
+export interface WindowRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  title: string;
+}
+
+export interface CaptureContext {
+  screenshot: string;
+  windows: WindowRect[];
+}

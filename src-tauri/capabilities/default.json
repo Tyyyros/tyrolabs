@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capacités par défaut de la fenêtre principale",
-  "windows": ["main"],
+  "windows": ["main", "capture"],
   "permissions": [
     "core:default",
     "core:window:allow-minimize",
@@ -14,9 +14,8 @@
     "store:allow-set",
     "store:allow-load",
     "store:allow-save",
-    "store:allow-delete",
-    "store:allow-clear",
     "core:window:allow-show",
-    "core:window:allow-hide"
+    "core:window:allow-hide",
+    "core:event:default"
   ]
 }

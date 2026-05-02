@@ -1,10 +1,11 @@
-import { useMemo, useState, useEffect, type ReactNode } from "react";
+import { useMemo, useState, useEffect } from "react";
 import type { ImageClip, ItemType, Theme } from "../../types";
 import { useTheme } from "../../lib/theme";
 import { C } from "../../lib/colors";
 import { Ic } from "../icons";
 import { SortableContext, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 
 interface CtxArgs {
   e: React.MouseEvent;
@@ -18,10 +19,11 @@ interface Props {
   onDoubleClick: (id: number, type: ItemType) => void;
   gridCols: number;
   selectedId: number | null;
-  onSelect: (id: number) => void;
+  selection: Set<number>;
+  onSelect: (id: number, e: React.MouseEvent, list: ImageClip[]) => void;
 }
 
-export function ImagesTab({ images, onCtx, onDoubleClick, gridCols, selectedId, onSelect }: Props) {
+export function ImagesTab({ images, onCtx, onDoubleClick, gridCols, selectedId, selection, onSelect }: Props) {
   const theme = useTheme();
   const sorted = useMemo(
     () => [...images.filter((c) => c.pinned), ...images.filter((c) => !c.pinned)],
@@ -34,14 +36,15 @@ export function ImagesTab({ images, onCtx, onDoubleClick, gridCols, selectedId, 
         style={{ display: "grid", gridTemplateColumns: `repeat(${gridCols},1fr)`, gap: 10 }}
       >
         <SortableContext items={sorted.map(c => c.id.toString())} strategy={rectSortingStrategy}>
-          {sorted.map((img) => (
+          {sorted.map((img, i) => (
             <ImgRow
               key={img.id}
               img={img}
+              index={i}
               onCtx={onCtx}
               onDoubleClick={onDoubleClick}
-              selected={selectedId === img.id}
-              onSelect={onSelect}
+              selected={selectedId === img.id || selection.has(img.id)}
+              onSelect={(id, e) => onSelect(id, e, sorted)}
               theme={theme}
             />
           ))}
@@ -53,6 +56,7 @@ export function ImagesTab({ images, onCtx, onDoubleClick, gridCols, selectedId, 
 
 function ImgRow({
   img,
+  index,
   onCtx,
   onDoubleClick,
   selected,
@@ -60,10 +64,11 @@ function ImgRow({
   theme,
 }: {
   img: ImageClip;
+  index: number;
   onCtx: (a: CtxArgs) => void;
   onDoubleClick: (id: number, type: ItemType) => void;
   selected: boolean;
-  onSelect: (id: number) => void;
+  onSelect: (id: number, e: React.MouseEvent, list: ImageClip[]) => void;
   theme: Theme;
 }) {
   const [hov, setHov] = useState(false);
@@ -73,7 +78,7 @@ function ImgRow({
   });
 
   const style = {
-    cursor: "pointer",
+    cursor: isDragging ? "grabbing" : "pointer",
     userSelect: "none" as const,
     outline: selected ? `2px solid ${C.accent}` : "none",
     borderRadius: 6,
@@ -93,10 +98,11 @@ function ImgRow({
         e.preventDefault();
         onCtx({ e, item: img, itemType: "image" });
       }}
-      onMouseDown={() => onSelect(img.id)}
+      onMouseDown={(e) => onSelect(img.id, e, [] /* not used for single row */)}
       onDoubleClick={() => onDoubleClick(img.id, "image")}
       style={style}
       {...attributes}
+      {...listeners}
     >
       <div
         style={{
@@ -116,40 +122,25 @@ function ImgRow({
         }}
       >
         <ImgView hash={img.hash} />
-        {hov && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "rgba(0,0,0,0.72)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-            }}
-          >
-            <ImgBtn onClick={() => onDoubleClick(img.id, "image")}>
-              <Ic.Copy width={13} height={13} strokeWidth={theme.iconStroke} />
-            </ImgBtn>
-            <ImgBtn 
-              {...listeners} 
-              style={{ 
-                cursor: isDragging ? "grabbing" : "grab",
-                width: 20,
-                height: 32,
-                color: hov ? `rgba(${theme.accentRGB || "59, 130, 246"}, 0.8)` : "transparent",
-                background: "rgba(255,255,255,0.05)"
-              }}
-            >
-              <Ic.GripVertical width={16} height={16} strokeWidth={2.5} />
-            </ImgBtn>
-          </div>
-        )}
         {img.pinned && (
           <div style={{ position: "absolute", top: 4, left: 4, color: C.accent }}>
             <Ic.PinFill width={10} height={10} />
           </div>
         )}
+        <div
+          style={{
+            position: "absolute",
+            bottom: 4,
+            left: 4,
+            fontSize: 9,
+            color: "#fff",
+            fontFamily: theme.fontMono,
+            opacity: 0.4,
+            userSelect: "none",
+          }}
+        >
+          #{index + 1}
+        </div>
       </div>
       <div style={{ marginTop: 5, padding: "0 1px" }}>
         <div
@@ -175,14 +166,14 @@ function ImgRow({
           }}
         >
           <span>{img.dims}</span>
-          <span>{img.time}</span>
+          <span>{img.date} {img.time}</span>
         </div>
       </div>
     </div>
   );
 }
 
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+
 
 function ImgView({ hash }: { hash: string }) {
   const [src, setSrc] = useState<string | null>(null);
@@ -215,43 +206,4 @@ function ImgView({ hash }: { hash: string }) {
   );
 }
 
-function ImgBtn({
-  children,
-  onClick,
-  style,
-  ...props
-}: {
-  children: ReactNode;
-  onClick?: () => void;
-  style?: React.CSSProperties;
-  [key: string]: any;
-}) {
-  const [bh, setBh] = useState(false);
-  return (
-    <div
-      {...props}
-      onClick={(e) => {
-        if (onClick) {
-          e.stopPropagation();
-          onClick();
-        }
-      }}
-      onMouseEnter={() => setBh(true)}
-      onMouseLeave={() => setBh(false)}
-      style={{
-        width: 24,
-        height: 24,
-        borderRadius: "50%",
-        background: bh ? "rgba(255,255,255,0.15)" : "transparent",
-        color: C.t1,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        transition: "background 0.1s",
-        ...style,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
+

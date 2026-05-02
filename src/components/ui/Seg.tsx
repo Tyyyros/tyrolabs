@@ -16,7 +16,7 @@ export function Seg<V extends string>({ value, onChange, options }: Props<V>) {
     <div
       style={{
         display: "flex",
-        background: "#0D0D10",
+        background: "var(--sidebar)",
         border: `1px solid ${C.border}`,
         borderRadius: 5,
         padding: 2,

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { INIT_IMAGES } from "../data/seed";
+
 import type { AnyClip, ImageClip, ItemType, TextClip, Collection } from "../types";
 import { isImageClip } from "../types";
 
@@ -32,7 +32,7 @@ function liftToHead<T extends { id: number }>(items: T[], id: number): T[] {
 
 export function useClipboardStore() {
   const [textClips, setTextClips] = useState<TextClip[]>([]);
-  const [imageClips, setImageClips] = useState<ImageClip[]>(INIT_IMAGES);
+  const [imageClips, setImageClips] = useState<ImageClip[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
 
   useEffect(() => {
@@ -118,7 +118,14 @@ export function useClipboardStore() {
     [copyClip, findClip],
   );
 
-  const togglePinned = useCallback((id: number, itemType: ItemType) => {
+  const togglePinned = useCallback(async (id: number, itemType: ItemType) => {
+    try {
+      await invoke("toggle_pinned", { id });
+    } catch (error) {
+      console.error("[toggle_pinned] failed:", error);
+      return;
+    }
+
     const toggle = <T extends { id: number; pinned: boolean }>(items: T[]) =>
       items.map((clip) => (clip.id === id ? { ...clip, pinned: !clip.pinned } : clip));
 
@@ -138,6 +145,15 @@ export function useClipboardStore() {
     }
 
     setImageClips((prev) => prev.filter((clip) => clip.id !== id));
+  }, []);
+
+  const deleteClips = useCallback((ids: number[], itemType: ItemType) => {
+    invoke("delete_clips", { ids }).catch(console.error);
+    if (isTextualItemType(itemType)) {
+      setTextClips((prev) => prev.filter((clip) => !ids.includes(clip.id)));
+    } else {
+      setImageClips((prev) => prev.filter((clip) => !ids.includes(clip.id)));
+    }
   }, []);
 
   const openClip = useCallback((item: AnyClip, itemType: ItemType) => {
@@ -190,8 +206,16 @@ export function useClipboardStore() {
 
   const setClipCollection = useCallback(async (clipId: number, collectionId: string, sortOrder: number) => {
     await invoke("set_clip_collection", { clipId, collectionId, sortOrder });
-    setTextClips((prev) => prev.map((c) => (c.id === clipId ? { ...c, collection_id: collectionId, sort_order: sortOrder } : c)));
-    setImageClips((prev) => prev.map((c) => (c.id === clipId ? { ...c, collection_id: collectionId, sort_order: sortOrder } : c)));
+    const update = <T extends { id: number; collection_id?: string | null; sort_order?: number }>(prev: T[]) => prev.map((c) => (c.id === clipId ? { ...c, collection_id: collectionId, sort_order: sortOrder } : c));
+    setTextClips(update);
+    setImageClips(update);
+  }, []);
+
+  const setClipsCollection = useCallback(async (clipIds: number[], collectionId: string) => {
+    await invoke("set_clips_collection", { clipIds, collectionId });
+    const update = <T extends { id: number; collection_id?: string | null }>(prev: T[]) => prev.map((c) => (clipIds.includes(c.id) ? { ...c, collection_id: collectionId } : c));
+    setTextClips(update);
+    setImageClips(update);
   }, []);
 
   const ungroupClip = useCallback(async (clipId: number) => {
@@ -217,12 +241,14 @@ export function useClipboardStore() {
     copyAndPromoteClip,
     togglePinned,
     deleteClip,
+    deleteClips,
     openClip,
     updateTextClip,
     createCollection,
     updateCollection,
     deleteCollection,
     setClipCollection,
+    setClipsCollection,
     ungroupClip,
     reorderInCollection,
   };

@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import type { TextClip, ItemType } from "../../types";
+import type { AnyClip, ItemType } from "../../types";
 import { useTheme } from "../../lib/theme";
 import { C } from "../../lib/colors";
 import { Ic } from "../icons";
 import { WinBtn } from "../layout/WinBtn";
 
-type EditableItem = TextClip;
+type EditableItem = AnyClip;
 
 interface Props {
   item: EditableItem;
@@ -32,7 +32,7 @@ export function EditorPanel({ item, itemType, onSave, onClose }: Props) {
     <div
       style={{
         flexShrink: 0,
-        background: "#0F0F12",
+        background: "var(--bg)",
         borderTop: `1px solid ${C.border}`,
         boxShadow: "0 -8px 40px rgba(0,0,0,0.4)",
         transform: anim ? "translateY(0)" : "translateY(20px)",
@@ -53,7 +53,7 @@ export function EditorPanel({ item, itemType, onSave, onClose }: Props) {
           }}
         >
           <span style={{ fontSize: 13, fontWeight: 600 }}>
-            Éditer {itemType === "link" ? "le lien" : "le texte"}
+            {itemType === "image" ? "Renommer l'image" : itemType === "link" ? "Éditer le lien" : "Éditer le texte"}
           </span>
           <WinBtn onClick={onClose} title="Fermer">
             <Ic.X width={16} height={16} strokeWidth={theme.iconStroke} />
@@ -66,8 +66,8 @@ export function EditorPanel({ item, itemType, onSave, onClose }: Props) {
             autoFocus
             style={{
               width: "100%",
-              minHeight: 140,
-              background: "#06060A",
+              minHeight: itemType === "image" ? 40 : 140,
+              background: "var(--sidebar)",
               border: `1px solid ${C.border}`,
               borderRadius: 6,
               color: C.t1,
@@ -75,7 +75,7 @@ export function EditorPanel({ item, itemType, onSave, onClose }: Props) {
               fontFamily: theme.fontUI,
               padding: "10px 12px",
               outline: "none",
-              resize: "vertical",
+              resize: itemType === "image" ? "none" : "vertical",
               lineHeight: 1.6,
             }}
           />
@@ -170,24 +170,26 @@ export function EditorPanel({ item, itemType, onSave, onClose }: Props) {
               >
                 Annuler
               </button>
-              <button
-                onClick={() => {
-                  onSave(item.id, text, itemType, true);
-                  onClose();
-                }}
-                style={{
-                  padding: "7px 18px",
-                  background: C.accentDim,
-                  border: `1px solid ${C.accent}`,
-                  borderRadius: 5,
-                  color: C.accent,
-                  cursor: "pointer",
-                  fontSize: 12,
-                  fontWeight: 500,
-                }}
-              >
-                Enregistrer et Copier
-              </button>
+              {itemType !== "image" && (
+                <button
+                  onClick={() => {
+                    onSave(item.id, text, itemType, true);
+                    onClose();
+                  }}
+                  style={{
+                    padding: "7px 18px",
+                    background: C.accentDim,
+                    border: `1px solid ${C.accent}`,
+                    borderRadius: 5,
+                    color: C.accent,
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontWeight: 500,
+                  }}
+                >
+                  Enregistrer et Copier
+                </button>
+              )}
               <button
                 onClick={() => {
                   onSave(item.id, text, itemType);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { C, hexToRgba } from "../../lib/colors";
 import { useTheme } from "../../lib/theme";
 import { Ic } from "../icons";
@@ -12,6 +12,7 @@ interface Props {
   onSelectCollection: (id: string | null) => void;
   onCreateCollection: () => void;
   onDeleteCollection: (id: string) => void;
+  onRenameCollection: (id: string, name: string) => void;
   collectionClipCounts: Record<string, number>;
 }
 
@@ -20,17 +21,39 @@ function CollectionSlot({
   active,
   onClick,
   onDelete,
+  onRename,
   count,
 }: {
   collection: Collection;
   active: boolean;
   onClick: () => void;
   onDelete: () => void;
+  onRename: (name: string) => void;
   count: number;
 }) {
   const [hov, setHov] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(collection.name);
+  const inputRef = useRef<HTMLInputElement>(null);
   const theme = useTheme();
   const { isOver, setNodeRef } = useDroppable({ id: `collection-drop-${collection.id}`, data: { collectionId: collection.id } });
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  const commitRename = () => {
+    const trimmed = editName.trim();
+    if (trimmed && trimmed !== collection.name) {
+      onRename(trimmed);
+    } else {
+      setEditName(collection.name);
+    }
+    setEditing(false);
+  };
 
   return (
     <div
@@ -57,22 +80,58 @@ function CollectionSlot({
         boxShadow: isOver ? `0 0 12px ${hexToRgba(collection.color, 0.25)}` : "none",
       }}
     >
-      <span style={{ fontSize: 14, flexShrink: 0 }}>{collection.icon}</span>
-      <span
-        style={{
-          fontSize: 11,
-          color: active ? collection.color : C.t1,
-          fontFamily: theme.fontUI,
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          flex: 1,
-          fontWeight: active ? 600 : 400,
-        }}
-      >
-        {collection.name}
-      </span>
-      {hov ? (
+      <span style={{ fontSize: 14, flexShrink: 0, pointerEvents: "none" }}>{collection.icon}</span>
+      {editing ? (
+        <input
+          ref={inputRef}
+          value={editName}
+          onChange={(e) => setEditName(e.target.value)}
+          onBlur={commitRename}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commitRename();
+            if (e.key === "Escape") {
+              setEditName(collection.name);
+              setEditing(false);
+            }
+          }}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            fontSize: 11,
+            color: collection.color,
+            fontFamily: theme.fontUI,
+            fontWeight: 600,
+            background: "rgba(255,255,255,0.06)",
+            border: `1px solid ${collection.color}`,
+            borderRadius: 4,
+            outline: "none",
+            padding: "2px 4px",
+          }}
+        />
+      ) : (
+        <span
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            setEditName(collection.name);
+            setEditing(true);
+          }}
+          style={{
+            fontSize: 11,
+            color: active ? collection.color : C.t1,
+            fontFamily: theme.fontUI,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            flex: 1,
+            fontWeight: active ? 600 : 400,
+            pointerEvents: "none",
+          }}
+        >
+          {collection.name}
+        </span>
+      )}
+      {hov && !editing ? (
         <div
           onClick={(e) => {
             e.stopPropagation();
@@ -94,7 +153,7 @@ function CollectionSlot({
         >
           <Ic.X width={12} height={12} strokeWidth={2.5} />
         </div>
-      ) : (
+      ) : !editing ? (
         <span
           style={{
             fontSize: 10,
@@ -107,7 +166,7 @@ function CollectionSlot({
         >
           {count}
         </span>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -118,6 +177,7 @@ export function CollectionBar({
   onSelectCollection,
   onCreateCollection,
   onDeleteCollection,
+  onRenameCollection,
   collectionClipCounts,
 }: Props) {
   const [addHov, setAddHov] = useState(false);
@@ -179,26 +239,47 @@ export function CollectionBar({
         flexShrink: 0,
       }}
     >
-      {/* "All" button to exit collection filter */}
-      <div
-        onClick={() => onSelectCollection(null)}
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: 8,
-          border: `1px solid ${!activeCollectionId ? theme.accent : "rgba(39,39,42,0.35)"}`,
-          background: !activeCollectionId ? hexToRgba(theme.accent, 0.1) : "transparent",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-          color: !activeCollectionId ? theme.accent : C.t2,
-          transition: "all 0.12s",
-          flexShrink: 0,
-        }}
-      >
-        <Ic.Home width={15} height={15} strokeWidth={2} />
-      </div>
+        <div
+          style={{
+            width: activeCollectionId ? 36 : 0,
+            opacity: activeCollectionId ? 1 : 0,
+            marginRight: activeCollectionId ? 0 : -6,
+            transition: "all 0.2s ease-out",
+            overflow: "hidden",
+            display: "flex",
+            flexShrink: 0,
+          }}
+        >
+            <div
+              onClick={() => onSelectCollection(null)}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                border: `1px solid rgba(39,39,42,0.35)`,
+                background: "transparent",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                color: C.t2,
+                transition: "all 0.12s",
+                flexShrink: 0,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = theme.accent;
+                e.currentTarget.style.borderColor = theme.accent;
+                e.currentTarget.style.background = hexToRgba(theme.accent, 0.1);
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = C.t2;
+                e.currentTarget.style.borderColor = "rgba(39,39,42,0.35)";
+                e.currentTarget.style.background = "transparent";
+              }}
+            >
+              <Ic.Home width={15} height={15} strokeWidth={2} />
+            </div>
+        </div>
 
       {/* Add collection button */}
       <button
@@ -233,6 +314,7 @@ export function CollectionBar({
             active={activeCollectionId === g.id}
             onClick={() => onSelectCollection(activeCollectionId === g.id ? null : g.id)}
             onDelete={() => setDeleteConfirmId(g.id)}
+            onRename={(name) => onRenameCollection(g.id, name)}
             count={collectionClipCounts[g.id] ?? 0}
           />
         ))}

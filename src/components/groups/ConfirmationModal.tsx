@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
 import { C } from "../../lib/colors";
 import { useTheme } from "../../lib/theme";
 import { Ic } from "../icons";
@@ -18,16 +18,23 @@ export function ConfirmationModal({
 }) {
   const theme = useTheme();
 
+  const [anim, setAnim] = useState(false);
+  useEffect(() => {
+    if (open) {
+      requestAnimationFrame(() => setAnim(true));
+    } else {
+      setAnim(false);
+    }
+  }, [open]);
+
   if (!open) return null;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onCancel}
-        style={{
+    <div
+      onClick={onCancel}
+      style={{
+        opacity: anim ? 1 : 0,
+        transition: "opacity 0.18s ease-out",
           position: "fixed",
           inset: 0,
           background: "rgba(0,0,0,0.6)",
@@ -38,13 +45,12 @@ export function ConfirmationModal({
           backdropFilter: "blur(4px)",
         }}
       >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.92, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.92, y: 10 }}
-          transition={{ duration: 0.18 }}
+        <div
           onClick={(e) => e.stopPropagation()}
           style={{
+            transform: anim ? "scale(1) translateY(0)" : "scale(0.92) translateY(10px)",
+            opacity: anim ? 1 : 0,
+            transition: "all 0.18s ease-out",
             width: 320,
             background: theme.bg,
             border: `1px solid ${theme.accent}`,
@@ -118,8 +124,7 @@ export function ConfirmationModal({
               Supprimer
             </button>
           </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+        </div>
+      </div>
   );
 }

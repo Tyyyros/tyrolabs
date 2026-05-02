@@ -14,7 +14,7 @@ export function Toggle({ value, onChange }: Props) {
         height: 18,
         border: "none",
         borderRadius: 9,
-        background: value ? C.accent : "#27272A",
+        background: value ? C.accent : C.border,
         cursor: "pointer",
         position: "relative",
         transition: "background 0.2s",

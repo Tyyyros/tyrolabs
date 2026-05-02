@@ -4,6 +4,7 @@ import { useTheme } from "../../lib/theme";
 import { C } from "../../lib/colors";
 import { Ic } from "../icons";
 
+
 export interface CtxHandlers {
   copy: () => void;
   edit: () => void;
@@ -43,38 +44,39 @@ export function CtxMenu({ x, y, item, itemType, handlers }: Props) {
 
   const isPinned = (item as TextClip | ImageClip).pinned;
   const pinIcon = isPinned ? (
-    <Ic.PinFill width={13} height={13} />
+    <Ic.PinFill width={17} height={17} />
   ) : (
-    <Ic.Pin width={13} height={13} strokeWidth={theme.iconStroke} />
+    <Ic.Pin width={17} height={17} strokeWidth={2.2} />
   );
   const pinLabel = isPinned ? "Désépingler" : "Épingler";
 
   let rows: (RowDef | null)[];
   if (itemType === "text") {
     rows = [
-      { label: "Copier", icon: <Ic.Copy width={13} height={13} strokeWidth={theme.iconStroke} />, action: handlers.copy },
-      { label: "Éditer", icon: <Ic.Edit width={13} height={13} strokeWidth={theme.iconStroke} />, action: handlers.edit },
+      { label: "Copier", icon: <Ic.Copy width={17} height={17} strokeWidth={2.2} />, action: handlers.copy },
+      { label: "Éditer", icon: <Ic.Edit width={17} height={17} strokeWidth={2.2} />, action: handlers.edit },
       { label: pinLabel, icon: pinIcon, action: handlers.pin },
       null,
-      { label: "Copier texte brut", icon: <Ic.Clip width={13} height={13} strokeWidth={theme.iconStroke} />, action: handlers.copyPlain ?? (() => {}) },
-      { label: "Supprimer", icon: <Ic.Trash width={13} height={13} strokeWidth={theme.iconStroke} />, action: handlers.delete, danger: true },
+      { label: "Copier texte brut", icon: <Ic.Clip width={17} height={17} strokeWidth={2.2} />, action: handlers.copyPlain ?? (() => {}) },
+      { label: "Supprimer", icon: <Ic.Trash width={17} height={17} strokeWidth={2.2} />, action: handlers.delete, danger: true },
     ];
   } else if (itemType === "image") {
     rows = [
-      { label: "Copier l'image", icon: <Ic.Copy width={13} height={13} strokeWidth={theme.iconStroke} />, action: handlers.copy },
-      { label: "Ouvrir dans Paint", icon: <Ic.Paint width={13} height={13} strokeWidth={theme.iconStroke} />, action: handlers.open ?? (() => {}) },
+      { label: "Copier l'image", icon: <Ic.Copy width={17} height={17} strokeWidth={2.2} />, action: handlers.copy },
+      { label: "Ouvrir dans Paint", icon: <Ic.Paint width={17} height={17} strokeWidth={2.2} />, action: handlers.open ?? (() => {}) },
+      { label: "Renommer", icon: <Ic.Edit width={17} height={17} strokeWidth={2.2} />, action: handlers.edit },
       { label: pinLabel, icon: pinIcon, action: handlers.pin },
       null,
-      { label: "Supprimer", icon: <Ic.Trash width={13} height={13} strokeWidth={theme.iconStroke} />, action: handlers.delete, danger: true },
+      { label: "Supprimer", icon: <Ic.Trash width={17} height={17} strokeWidth={2.2} />, action: handlers.delete, danger: true },
     ];
   } else {
     rows = [
-      { label: "Ouvrir", icon: <Ic.ArrowUp width={13} height={13} strokeWidth={theme.iconStroke} />, action: handlers.open ?? (() => {}) },
-      { label: "Copier", icon: <Ic.Copy width={13} height={13} strokeWidth={theme.iconStroke} />, action: handlers.copy },
-      { label: "Éditer", icon: <Ic.Edit width={13} height={13} strokeWidth={theme.iconStroke} />, action: handlers.edit },
+      { label: "Ouvrir", icon: <Ic.ArrowUp width={17} height={17} strokeWidth={2.2} />, action: handlers.open ?? (() => {}) },
+      { label: "Copier", icon: <Ic.Copy width={17} height={17} strokeWidth={2.2} />, action: handlers.copy },
+      { label: "Éditer", icon: <Ic.Edit width={17} height={17} strokeWidth={2.2} />, action: handlers.edit },
       { label: pinLabel, icon: pinIcon, action: handlers.pin },
       null,
-      { label: "Supprimer", icon: <Ic.Trash width={13} height={13} strokeWidth={theme.iconStroke} />, action: handlers.delete, danger: true },
+      { label: "Supprimer", icon: <Ic.Trash width={17} height={17} strokeWidth={2.2} />, action: handlers.delete, danger: true },
     ];
   }
 
@@ -85,26 +87,27 @@ export function CtxMenu({ x, y, item, itemType, handlers }: Props) {
         position: "fixed",
         left: ax,
         top: ay,
-        background: "#17171A",
+        background: "#0c0c0e", // Slightly darker background
         border: `1px solid ${C.border}`,
-        borderRadius: 7,
+        borderRadius: 10,
         overflow: "hidden",
         zIndex: 500,
-        minWidth: 210,
-        boxShadow: "0 12px 40px rgba(0,0,0,0.7)",
-        padding: "4px 0",
+        minWidth: 230,
+        boxShadow: "0 25px 60px -12px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.03)", // Stronger shadow
+        padding: "5px 0",
       }}
     >
-      <div style={{ padding: "8px 12px 6px", borderBottom: `1px solid ${C.border}`, marginBottom: 4 }}>
+      <div style={{ padding: "10px 14px 8px", borderBottom: `1px solid ${C.border}`, marginBottom: 4 }}>
         <div
           style={{
             fontSize: 10,
-            color: C.t2,
+            color: theme.accent, // Use accent for preview title
+            fontWeight: 600,
             fontFamily: theme.fontMono,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            maxWidth: 185,
+            opacity: 0.8,
           }}
         >
           {preview}
@@ -112,7 +115,7 @@ export function CtxMenu({ x, y, item, itemType, handlers }: Props) {
       </div>
       {rows.map((it, i) =>
         it === null ? (
-          <div key={i} style={{ height: 1, background: C.border, margin: "4px 0" }} />
+          <div key={i} style={{ height: 1, background: C.border, margin: "5px 0" }} />
         ) : (
           <CtxItem key={i} {...it} />
         ),
@@ -123,29 +126,33 @@ export function CtxMenu({ x, y, item, itemType, handlers }: Props) {
 
 function CtxItem({ label, icon, action, danger }: RowDef) {
   const [hov, setHov] = useState(false);
+  const theme = useTheme();
   return (
     <button
-      onClick={action}
+      onClick={(e) => {
+        e.stopPropagation();
+        action();
+      }}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
         width: "100%",
-        padding: "7px 12px",
+        padding: "9px 14px",
         display: "flex",
         alignItems: "center",
-        gap: 9,
-        background: hov ? (danger ? C.dangerDim : C.accentDim) : "transparent",
+        gap: 12,
+        background: hov ? (danger ? C.danger : theme.accent) : "transparent",
         border: "none",
         cursor: "pointer",
-        transition: "all 0.08s",
-        color: danger ? (hov ? C.danger : "#8A4040") : hov ? C.t1 : "#AAAAB2",
-        fontSize: 12,
+        transition: "all 0.1s ease",
+        color: hov ? "#fff" : (danger ? C.danger : "var(--t1)"),
+        fontSize: 13,
         textAlign: "left",
-        fontFamily: "inherit",
+        fontFamily: theme.fontUI,
       }}
     >
-      <span style={{ opacity: 0.75 }}>{icon}</span>
-      {label}
+      <span style={{ display: "flex", opacity: hov ? 1 : 0.7, transform: hov ? "scale(1.05)" : "scale(1)" }}>{icon}</span>
+      <span style={{ fontWeight: hov ? 600 : 400 }}>{label}</span>
     </button>
   );
 }

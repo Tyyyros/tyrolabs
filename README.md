@@ -1,62 +1,42 @@
 # TyroLabs Toolbox
 
-> **Desktop clipboard manager** — Application de bureau légère et rapide construite avec Tauri v2, React 19 et Rust.
+Desktop clipboard manager for Windows, built with Tauri v2, Rust, React 19,
+TypeScript and Vite 7.
 
----
+## Features
 
-## ✨ Fonctionnalités
+- Clipboard history for text, code-like snippets, links and images.
+- Text, links, images and favorites views.
+- Collections with drag and drop through `@dnd-kit`.
+- In-memory Rust state synchronized to a JSON store to avoid repeated disk reads.
+- Image clipboard support with files stored under the app data directory and served through Tauri's `asset://` protocol.
+- Automatic cleanup for image files removed from history or truncated by history limits.
+- Screen capture overlay backed by Rust commands and a dedicated `/capture` webview.
+- Windows startup launch control through the official Tauri autostart plugin.
+- Custom title bar, tray integration and system info drawer.
+- Theme switching through local theme tokens.
 
-- 📋 **Historique clipboard** — Capture automatique de tout ce que vous copiez
-- 📝 **Onglet Texte** — Historique et gestion des textes copiés
-- 🔗 **Onglet Liens** — Détection et organisation automatique des URLs
-- 🖼️ **Onglet Images** — Historique des images copiées
-- ⭐ **Favoris** — Épinglez vos éléments les plus utilisés
-- 🗂️ **Collections** — Groupez vos éléments via Drag & Drop avec persistance garantie
-- 🎨 **Thèmes** — Personnalisation visuelle de l'interface
-- 🪟 **Overlay system** — Accès rapide via overlay flottant
+## Stack
 
----
-
-## 🏗️ Stack technique
-
-| Couche | Technologie |
+| Layer | Technology |
 |---|---|
-| **Framework desktop** | [Tauri v2](https://tauri.app) |
-| **Backend** | Rust |
-| **Frontend** | React 19 + TypeScript |
-| **Build tool** | Vite 7 |
-| **Styles** | Tailwind CSS v3 |
-| **Icônes** | Lucide React |
+| Desktop framework | Tauri v2 |
+| Backend | Rust |
+| Frontend | React 19 + TypeScript |
+| Build tool | Vite 7 |
+| Styling | Tailwind CSS v3 + inline theme tokens |
+| Icons | Local SVG icon set in `src/components/icons.tsx` + Lucide React for settings controls |
+| Drag and drop | `@dnd-kit/core`, `@dnd-kit/sortable` |
+| Startup integration | `tauri-plugin-autostart`, `@tauri-apps/plugin-autostart` |
 
----
+## Requirements
 
-## 🚀 Installation & Lancement
+- Node.js 18 or newer
+- Rust stable
+- Microsoft C++ Build Tools on Windows
+- WebView2 runtime on Windows
 
-### Étape 1 — Installer les prérequis
-
-#### Node.js (>= 18)
-Télécharge la version LTS sur [nodejs.org](https://nodejs.org/)
-
-#### Rust
-```bash
-# Windows / macOS / Linux
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-Redémarre ton terminal après l'installation.
-
-#### Windows uniquement
-- **Microsoft C++ Build Tools** — requis pour compiler Rust : [Télécharger ici](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
-  - Lors de l'installation, coche **"Desktop development with C++"**
-- **WebView2** — déjà présent sur Windows 10/11, sinon [Télécharger ici](https://developer.microsoft.com/microsoft-edge/webview2/)
-
-#### Tauri CLI
-```bash
-npm install -g @tauri-apps/cli
-```
-
----
-
-### Étape 2 — Cloner le repo
+## Install
 
 ```bash
 git clone https://github.com/Tyyyros/tyrolabs.git
@@ -64,77 +44,92 @@ cd tyrolabs
 npm install
 ```
 
----
-
-### Étape 3 — Lancer en développement
+## Development
 
 ```bash
 npm run tauri dev
 ```
 
-> ⚠️ **La première compilation Rust peut prendre 3 à 5 minutes** — Cargo télécharge et compile toutes les dépendances. Les lancements suivants seront quasi-instantanés grâce au cache.
+The Vite frontend runs on `http://localhost:1420` when launched through Tauri.
 
-L'application s'ouvre automatiquement. Le frontend Vite tourne sur `http://localhost:1420` avec hot-reload activé.
-
----
-
-### Étape 4 — Build de production (optionnel)
+## Build
 
 ```bash
+npm run build
 npm run tauri build
 ```
 
-Le binaire compilé sera dans :
-- **Windows** → `src-tauri/target/release/bundle/msi/` ou `nsis/`
-- **macOS** → `src-tauri/target/release/bundle/dmg/`
-- **Linux** → `src-tauri/target/release/bundle/appimage/`
+Production bundles are emitted under `src-tauri/target/release/bundle/`.
 
----
+## Scripts
 
-## ⚙️ Scripts disponibles
-
-| Commande | Description |
+| Command | Description |
 |---|---|
-| `npm run dev` | Lance Vite en mode dev (frontend seul, sans Tauri) |
-| `npm run build` | Build TypeScript + Vite |
-| `npm run tauri dev` | Lance l'app Tauri complète en développement |
-| `npm run tauri build` | Compile l'app desktop pour la production |
+| `npm run dev` | Run Vite only |
+| `npm run build` | Type-check and build the frontend |
+| `npm run tauri dev` | Run the full Tauri app in development |
+| `npm run tauri build` | Build the desktop app |
 
----
+## Project Structure
 
-## 📁 Structure du projet
-
-```
+```text
 tyrolabs/
-├── src/                        # Frontend React/TypeScript
-│   ├── App.tsx                 # Composant racine
-│   ├── main.tsx                # Entry point React
-│   ├── themes.ts               # Système de thèmes
-│   ├── types.ts                # Types TypeScript
-│   ├── index.css               # Styles globaux (Tailwind)
-│   ├── components/
-│   │   ├── tabs/               # Onglets principaux
-│   │   │   ├── TextTab.tsx
-│   │   │   ├── LinksTab.tsx
-│   │   │   ├── ImagesTab.tsx
-│   │   │   └── FavsTab.tsx
-│   │   ├── layout/
-│   │   ├── overlays/
-│   │   └── ui/
-│   ├── data/
-│   └── lib/
-├── src-tauri/                  # Backend Rust (Tauri)
-│   ├── src/
-│   ├── Cargo.toml
-│   ├── tauri.conf.json
-│   └── capabilities/
-├── package.json
-├── vite.config.ts
-└── tailwind.config.js
++-- src/
+|   +-- App.tsx
+|   +-- main.tsx
+|   +-- themes.ts
+|   +-- types.ts
+|   +-- components/
+|   |   +-- groups/
+|   |   +-- layout/
+|   |   +-- overlays/
+|   |   +-- settings/
+|   |   +-- tabs/
+|   |   +-- ui/
+|   +-- hooks/
+|   |   +-- useAutostart.ts
+|   +-- lib/
+|       +-- clipboard-store.ts
+|       +-- colors.ts
+|       +-- theme.tsx
++-- src-tauri/
+|   +-- src/
+|   |   +-- capture.rs
+|   |   +-- clipboard.rs
+|   |   +-- commands.rs
+|   |   +-- lib.rs
+|   |   +-- models.rs
+|   |   +-- state.rs
+|   |   +-- store.rs
+|   |   +-- tray.rs
+|   +-- capabilities/
+|   |   +-- autostart.json
+|   |   +-- default.json
+|   +-- Cargo.toml
+|   +-- tauri.conf.json
++-- package.json
++-- vite.config.ts
++-- tailwind.config.js
 ```
 
----
+## Architecture Notes
 
-## 👤 Auteur
+The backend owns clipboard history and collections through `AppState` in
+`src-tauri/src/state.rs`. Commands in `src-tauri/src/commands.rs` mutate that
+state and persist through `src-tauri/src/store.rs`.
 
-**Tyyyros** — [github.com/Tyyyros](https://github.com/Tyyyros)
+The frontend talks to Rust through Tauri `invoke` calls in
+`src/lib/clipboard-store.ts`. Runtime IPC command names must stay synchronized
+with `tauri::generate_handler!` in `src-tauri/src/lib.rs`.
+
+Image clips are identified by a hash and resolved to app-data files by Rust.
+The frontend should use the backend path resolver before showing or opening
+image files.
+
+Autostart is managed by the official Tauri autostart plugin. The frontend uses
+`src/hooks/useAutostart.ts`, and permissions are scoped through
+`src-tauri/capabilities/autostart.json`.
+
+## Author
+
+Tyyyros - https://github.com/Tyyyros

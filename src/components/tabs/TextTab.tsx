@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import type { TextClip, ItemType, Theme } from "../../types";
 import { useTheme } from "../../lib/theme";
 import { C } from "../../lib/colors";
-import { Ic } from "../icons";
 import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -17,10 +16,11 @@ interface Props {
   onCtx: (a: CtxArgs) => void;
   onDoubleClick: (id: number, type: ItemType) => void;
   selectedId: number | null;
-  onSelect: (id: number) => void;
+  selection: Set<number>;
+  onSelect: (id: number, e: React.MouseEvent, list: TextClip[]) => void;
 }
 
-export function TextTab({ clips, onCtx, onDoubleClick, selectedId, onSelect }: Props) {
+export function TextTab({ clips, onCtx, onDoubleClick, selectedId, selection, onSelect }: Props) {
   const theme = useTheme();
   const sorted = useMemo(
     () => [...clips.filter((c) => c.pinned), ...clips.filter((c) => !c.pinned)],
@@ -47,15 +47,16 @@ export function TextTab({ clips, onCtx, onDoubleClick, selectedId, onSelect }: P
   return (
     <div style={{ flex: 1, overflowY: "auto" }}>
       <SortableContext items={sorted.map((c) => c.id.toString())} strategy={verticalListSortingStrategy}>
-        {sorted.map((c) => (
+        {sorted.map((c, i) => (
           <TextRow
             key={c.id}
             clip={c}
+            index={i}
             onCtx={onCtx}
             onDoubleClick={onDoubleClick}
             theme={theme}
-            selected={selectedId === c.id}
-            onSelect={onSelect}
+            selected={selectedId === c.id || selection.has(c.id)}
+            onSelect={(id, e) => onSelect(id, e, sorted)}
           />
         ))}
       </SortableContext>
@@ -69,10 +70,11 @@ interface RowProps {
   onDoubleClick: (id: number, type: ItemType) => void;
   theme: Theme;
   selected: boolean;
-  onSelect: (id: number) => void;
+  onSelect: (id: number, e: React.MouseEvent) => void;
+  index: number;
 }
 
-export function TextRow({ clip, onCtx, onDoubleClick, theme, selected, onSelect }: RowProps) {
+export function TextRow({ clip, onCtx, onDoubleClick, theme, selected, onSelect, index }: RowProps) {
   const [hov, setHov] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: clip.id.toString(),
@@ -84,11 +86,11 @@ export function TextRow({ clip, onCtx, onDoubleClick, theme, selected, onSelect 
     display: "flex",
     alignItems: "center",
     padding: "0 12px 0 6px",
-    background: selected ? "rgba(59,130,246,0.08)" : hov ? C.rowHov : "transparent",
+    background: selected ? "rgba(79, 70, 229, 0.15)" : hov ? C.rowHov : index % 2 === 0 ? "rgba(128,128,128,0.04)" : "transparent",
     borderBottom: `1px solid ${C.borderDim}`,
-    borderLeft: selected ? `2px solid ${C.accent}` : "2px solid transparent",
-    cursor: "default",
-    transition: transition || "background 0.08s",
+    borderLeft: clip.pinned ? `4px solid ${theme.accent}` : selected ? `4px solid ${C.accent}` : "4px solid transparent",
+    cursor: isDragging ? "grabbing" : "default",
+    transition: transition || "all 0.1s ease",
     transform: CSS.Translate.toString(transform),
     gap: 6,
     userSelect: "none" as const,
@@ -106,41 +108,14 @@ export function TextRow({ clip, onCtx, onDoubleClick, theme, selected, onSelect 
         e.preventDefault();
         onCtx({ e, item: clip, itemType: "text" });
       }}
-      onMouseDown={() => onSelect(clip.id)}
+      onMouseDown={(e) => onSelect(clip.id, e)}
       onDoubleClick={() => onDoubleClick(clip.id, "text")}
       style={style}
       {...attributes}
+      {...listeners}
     >
-      <div
-        {...listeners}
-        style={{
-          width: 20,
-          height: 32,
-          flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: hov ? `rgba(${theme.accentRGB || "59, 130, 246"}, 0.8)` : "transparent",
-          cursor: isDragging ? "grabbing" : "grab",
-          borderRadius: 6,
-          background: hov ? "rgba(255,255,255,0.05)" : "transparent",
-          transition: "all 0.12s",
-        }}
-      >
-        <Ic.GripVertical width={16} height={16} strokeWidth={2.5} />
-      </div>
-      <div
-        style={{
-          width: 14,
-          flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: C.accent,
-        }}
-      >
-        {clip.pinned && <Ic.Paperclip width={11} height={11} strokeWidth={theme.iconStroke} />}
-      </div>
+
+
       <span
         style={{
           flex: 1,

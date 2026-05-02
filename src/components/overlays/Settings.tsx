@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import type { Theme, ThemeId } from "../../types";
 import { THEMES } from "../../themes";
 import { useTheme } from "../../lib/theme";
@@ -7,24 +8,28 @@ import { Ic } from "../icons";
 import { WinBtn } from "../layout/WinBtn";
 import { Toggle } from "../ui/Toggle";
 import { Seg } from "../ui/Seg";
+import { AutostartToggle } from "../settings/AutostartToggle";
 
 interface Props {
   onClose: () => void;
   themeName: ThemeId;
   onThemeChange: (id: ThemeId) => void;
+  autoCap: boolean;
+  onAutoCapChange: (v: boolean) => void;
 }
 
 type Lang = "fr" | "en";
 
-export function Settings({ onClose, themeName, onThemeChange }: Props) {
+export function Settings({ onClose, themeName, onThemeChange, autoCap, onAutoCapChange }: Props) {
   const theme = useTheme();
   const [anim, setAnim] = useState(false);
+  const [appVersion, setAppVersion] = useState("...");
   useEffect(() => {
     requestAnimationFrame(() => setAnim(true));
+    getVersion().then(setAppVersion).catch(() => setAppVersion("inconnue"));
   }, []);
 
   const [lang, setLang] = useState<Lang>("fr");
-  const [autoCap, setAutoCap] = useState(false);
   const [notifs, setNotifs] = useState(true);
   const [maxItems, setMaxItems] = useState(1000);
 
@@ -45,7 +50,8 @@ export function Settings({ onClose, themeName, onThemeChange }: Props) {
         onClick={(e) => e.stopPropagation()}
         style={{
           width: 500,
-          background: "#0F0F12",
+          background: "var(--bg)",
+          color: "var(--t1)",
           border: `1px solid ${C.border}`,
           borderRadius: 10,
           overflow: "hidden",
@@ -62,6 +68,7 @@ export function Settings({ onClose, themeName, onThemeChange }: Props) {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            background: "var(--sidebar)",
           }}
         >
           <span style={{ fontSize: 14, fontWeight: 600 }}>Réglages</span>
@@ -94,10 +101,36 @@ export function Settings({ onClose, themeName, onThemeChange }: Props) {
               }}
             >
               <Ic.Palette width={13} height={13} strokeWidth={theme.iconStroke} />
-              <span>THÈME</span>
+              <span>THÈMES SOMBRES</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8 }}>
-              {Object.values(THEMES).map((t) => (
+              {Object.values(THEMES).filter(t => !t.light).map((t) => (
+                <ThemeCard
+                  key={t.id}
+                  t={t}
+                  active={themeName === t.id}
+                  onClick={() => onThemeChange(t.id as ThemeId)}
+                />
+              ))}
+            </div>
+
+            <div
+              style={{
+                fontSize: 11,
+                color: C.t2,
+                letterSpacing: "0.08em",
+                marginTop: 16,
+                marginBottom: 12,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <Ic.Palette width={13} height={13} strokeWidth={theme.iconStroke} />
+              <span>THÈMES CLAIRS</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8 }}>
+              {Object.values(THEMES).filter(t => t.light).map((t) => (
                 <ThemeCard
                   key={t.id}
                   t={t}
@@ -122,8 +155,11 @@ export function Settings({ onClose, themeName, onThemeChange }: Props) {
             />
           </Row>
           <Row label="Capture auto">
-            <Toggle value={autoCap} onChange={setAutoCap} />
+            <Toggle value={autoCap} onChange={onAutoCapChange} />
           </Row>
+          <div style={{ padding: "11px 0", borderBottom: `1px solid ${C.borderDim}` }}>
+            <AutostartToggle />
+          </div>
           <Row label="Notifications">
             <Toggle value={notifs} onChange={setNotifs} />
           </Row>
@@ -153,7 +189,7 @@ export function Settings({ onClose, themeName, onThemeChange }: Props) {
 
           <div style={{ marginTop: 20 }}>
             <div style={{ fontSize: 11, color: C.t2, fontFamily: theme.fontMono }}>
-              TyroLabs V2.0.0-beta · Build 20260427
+              TyroLabs V{appVersion}
             </div>
             <div
               style={{ fontSize: 10.5, color: C.t3, fontFamily: theme.fontMono, marginTop: 4 }}
@@ -192,6 +228,10 @@ interface ThemeCardProps {
 
 function ThemeCard({ t, active, onClick }: ThemeCardProps) {
   const [hov, setHov] = useState(false);
+  const cardBg = t.bg;
+  const cardText = t.t1 || "#FAFAFA";
+  const cardTextDim = t.t2 || "#71717A";
+
   return (
     <button
       onClick={onClick}
@@ -200,11 +240,11 @@ function ThemeCard({ t, active, onClick }: ThemeCardProps) {
       style={{
         position: "relative",
         background: active
-          ? hexToRgba(t.accent, 0.1)
+          ? hexToRgba(t.accent, t.light ? 0.08 : 0.1)
           : hov
-            ? "rgba(255,255,255,0.04)"
-            : "#0A0A0D",
-        border: `1px solid ${active ? t.accent : hov ? C.border : "transparent"}`,
+            ? hexToRgba(t.accent, 0.04)
+            : cardBg,
+        border: `1px solid ${active ? t.accent : hov ? (t.border || C.border) : t.light ? (t.border || "#E4E4E7") : "transparent"}`,
         borderRadius: 8,
         padding: "10px 8px",
         cursor: "pointer",
@@ -239,7 +279,7 @@ function ThemeCard({ t, active, onClick }: ThemeCardProps) {
           fontFamily: t.fontUI,
           fontSize: 10,
           fontWeight: 600,
-          color: active ? t.accent : C.t1,
+          color: active ? t.accent : cardText,
           textAlign: "center",
           lineHeight: 1.2,
         }}
@@ -250,7 +290,7 @@ function ThemeCard({ t, active, onClick }: ThemeCardProps) {
         style={{
           fontFamily: t.fontMono,
           fontSize: 8,
-          color: C.t2,
+          color: cardTextDim,
           textAlign: "center",
           lineHeight: 1.3,
         }}

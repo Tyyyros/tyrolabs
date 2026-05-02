@@ -17,7 +17,8 @@ interface Props {
   onCtx: (a: CtxArgs) => void;
   onDoubleClick: (id: number, type: ItemType) => void;
   selectedId: number | null;
-  onSelect: (id: number) => void;
+  selection: Set<number>;
+  onSelect: (id: number, e: React.MouseEvent, list: TextClip[]) => void;
 }
 
 function extractInfo(text: string): { isUrl: boolean; label: string; sub: string } {
@@ -32,7 +33,7 @@ function extractInfo(text: string): { isUrl: boolean; label: string; sub: string
   }
 }
 
-export function LinksTab({ links, onCtx, onDoubleClick, selectedId, onSelect }: Props) {
+export function LinksTab({ links, onCtx, onDoubleClick, selectedId, selection, onSelect }: Props) {
   const theme = useTheme();
   const sorted = useMemo(
     () => [...links.filter((c) => c.pinned), ...links.filter((c) => !c.pinned)],
@@ -64,7 +65,7 @@ export function LinksTab({ links, onCtx, onDoubleClick, selectedId, onSelect }: 
   return (
     <div style={{ flex: 1, overflowY: "auto" }}>
       <SortableContext items={sorted.map(c => c.id.toString())} strategy={verticalListSortingStrategy}>
-        {sorted.map((clip) => {
+        {sorted.map((clip, i) => {
           const info = extractInfo(clip.text);
           return (
             <LinkRow
@@ -73,9 +74,10 @@ export function LinksTab({ links, onCtx, onDoubleClick, selectedId, onSelect }: 
               info={info}
               onCtx={onCtx}
               onDoubleClick={onDoubleClick}
-              selected={selectedId === clip.id}
-              onSelect={onSelect}
+              selected={selectedId === clip.id || selection.has(clip.id)}
+              onSelect={(id, e) => onSelect(id, e, sorted)}
               theme={theme}
+              index={i}
             />
           );
         })}
@@ -92,14 +94,16 @@ function LinkRow({
   selected,
   onSelect,
   theme,
+  index,
 }: {
   clip: TextClip;
   info: { isUrl: boolean; label: string; sub: string };
   onCtx: (a: CtxArgs) => void;
   onDoubleClick: (id: number, type: ItemType) => void;
   selected: boolean;
-  onSelect: (id: number) => void;
+  onSelect: (id: number, e: React.MouseEvent) => void;
   theme: Theme;
+  index: number;
 }) {
   const [hov, setHov] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -111,13 +115,13 @@ function LinkRow({
     height: 44,
     display: "flex",
     alignItems: "center",
-    padding: "0 12px",
+    padding: "0 12px 0 6px",
     gap: 10,
-    background: selected ? "rgba(59,130,246,0.08)" : hov ? C.rowHov : "transparent",
+    background: selected ? "rgba(79, 70, 229, 0.15)" : hov ? C.rowHov : index % 2 === 0 ? "rgba(128,128,128,0.04)" : "transparent",
     borderBottom: `1px solid ${C.borderDim}`,
-    borderLeft: selected ? `2px solid ${C.accent}` : "2px solid transparent",
-    cursor: "default",
-    transition: transition || "background 0.08s",
+    borderLeft: clip.pinned ? `4px solid ${theme.accent}` : selected ? `4px solid ${C.accent}` : "4px solid transparent",
+    cursor: isDragging ? "grabbing" : "default",
+    transition: transition || "all 0.1s ease",
     userSelect: "none" as const,
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 10 : 1,
@@ -134,35 +138,14 @@ function LinkRow({
         e.preventDefault();
         onCtx({ e, item: clip, itemType: "link" });
       }}
-      onMouseDown={() => onSelect(clip.id)}
+      onMouseDown={(e) => onSelect(clip.id, e)}
       onDoubleClick={() => onDoubleClick(clip.id, "link")}
       style={style}
       {...attributes}
+      {...listeners}
     >
-      <div
-        {...listeners}
-        style={{
-          width: 20,
-          height: 32,
-          flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: hov ? `rgba(${theme.accentRGB || "59, 130, 246"}, 0.8)` : "transparent",
-          cursor: isDragging ? "grabbing" : "grab",
-          borderRadius: 6,
-          background: hov ? "rgba(255,255,255,0.05)" : "transparent",
-          transition: "all 0.12s",
-        }}
-      >
-        <Ic.GripVertical width={16} height={16} strokeWidth={2.5} />
-      </div>
 
-      {clip.pinned && (
-        <div style={{ color: C.accent }}>
-          <Ic.PinFill width={10} height={10} />
-        </div>
-      )}
+
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
@@ -188,16 +171,22 @@ function LinkRow({
           {info.sub}
         </div>
       </div>
-      <div
+      <span
         style={{
-          fontSize: 10,
-          color: C.t3,
           fontFamily: theme.fontMono,
+          fontSize: 9.5,
+          color: "#A1A1AA",
           flexShrink: 0,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-end",
+          lineHeight: 1.35,
+          gap: 1,
         }}
       >
-        {clip.time}
-      </div>
+        <span>{clip.date}</span>
+        <span>{clip.time}</span>
+      </span>
     </div>
   );
 }
