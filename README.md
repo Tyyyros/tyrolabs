@@ -130,6 +130,11 @@ Autostart is managed by the official Tauri autostart plugin. The frontend uses
 `src/hooks/useAutostart.ts`, and permissions are scoped through
 `src-tauri/capabilities/autostart.json`.
 
+## Releases Link
+
+https://github.com/Tyyyros/tyrolabs/releases/tag/v0.1.1
+
 ## Author
 
 Tyyyros - https://github.com/Tyyyros
+
