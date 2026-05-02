@@ -5,9 +5,28 @@ use crate::store::{delete_image_file, save_collections, save_history, truncate_h
 use arboard::Clipboard;
 use base64::{engine::general_purpose, Engine as _};
 use serde::Serialize;
+use std::path::PathBuf;
 use sysinfo::System;
 use tauri::Emitter;
 use tauri::{AppHandle, Manager};
+
+fn resolve_image_path(app: &AppHandle, hash: &str) -> Result<PathBuf, String> {
+    if hash.is_empty()
+        || !hash
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+    {
+        return Err("Hash d'image invalide".into());
+    }
+
+    let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let file_path = app_data.join("images").join(format!("{hash}.png"));
+    if file_path.exists() {
+        Ok(file_path)
+    } else {
+        Err("Image introuvable dans le dossier local".into())
+    }
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CaptureContext {
@@ -297,20 +316,14 @@ pub fn open_in_paint(path: String) -> Result<(), String> {
 /// and to pass real paths to mspaint.
 #[tauri::command]
 pub fn get_image_path(app: AppHandle, hash: String) -> Result<String, String> {
-    let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let file_path = app_data.join("images").join(format!("{}.png", hash));
-    if file_path.exists() {
-        Ok(file_path.to_string_lossy().into_owned())
-    } else {
-        Err("Image non trouvée".into())
-    }
+    let file_path = resolve_image_path(&app, &hash)?;
+    Ok(file_path.to_string_lossy().into_owned())
 }
 
 /// Copies the actual image bitmap to the system clipboard (not text).
 #[tauri::command]
 pub fn copy_image_to_clipboard(app: AppHandle, hash: String) -> Result<(), String> {
-    let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let file_path = app_data.join("images").join(format!("{}.png", hash));
+    let file_path = resolve_image_path(&app, &hash)?;
     let img = image::open(&file_path).map_err(|e| e.to_string())?;
     let rgba = img.to_rgba8();
     let (w, h) = (rgba.width() as usize, rgba.height() as usize);
@@ -484,3 +497,4 @@ pub fn get_system_info() -> SysInfoResult {
         host: System::host_name().unwrap_or_else(|| "Unknown Host".into()),
     }
 }
+

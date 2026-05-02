@@ -175,35 +175,85 @@ function ImgRow({
 
 
 
+type ImageLoadState = "loading" | "ready" | "error";
+
 function ImgView({ hash }: { hash: string }) {
   const [src, setSrc] = useState<string | null>(null);
+  const [status, setStatus] = useState<ImageLoadState>("loading");
 
   useEffect(() => {
     let active = true;
+    setStatus("loading");
+    setSrc(null);
     invoke<string>("get_image_path", { hash })
       .then((filePath) => {
-        if (active) setSrc(convertFileSrc(filePath));
+        if (!active) return;
+        setSrc(convertFileSrc(filePath));
       })
-      .catch((e) => console.error("Failed to load image:", e));
+      .catch((e) => {
+        if (!active) return;
+        console.error("Failed to resolve image path:", e);
+        setStatus("error");
+      });
     return () => { active = false; };
   }, [hash]);
 
-  if (!src) return null;
+  if (status === "error") {
+    return (
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "grid",
+          placeItems: "center",
+          gap: 6,
+          color: "rgba(255,255,255,0.72)",
+          fontSize: 11,
+          fontFamily: "Inter, system-ui, sans-serif",
+          textAlign: "center",
+          padding: 12,
+        }}
+      >
+        <Ic.Image width={18} height={18} />
+        <span>Miniature indisponible</span>
+      </div>
+    );
+  }
 
   return (
-    <img
-      src={src}
-      style={{
-        position: "absolute",
-        inset: 0,
-        width: "100%",
-        height: "100%",
-        objectFit: "cover",
-      }}
-      alt="clipboard"
-      draggable={false}
-    />
+    <>
+      {src && (
+        <img
+          src={src}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            opacity: status === "ready" ? 1 : 0,
+            transition: "opacity 120ms ease",
+          }}
+          alt=""
+          draggable={false}
+          onLoad={() => setStatus("ready")}
+          onError={(event) => {
+            console.error("Failed to load thumbnail asset:", event.currentTarget.src);
+            setStatus("error");
+          }}
+        />
+      )}
+      {status === "loading" && (
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
+          }}
+        />
+      )}
+    </>
   );
 }
-
 
