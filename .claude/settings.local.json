@@ -18,7 +18,11 @@
       "Bash(unzip -l \"/c/Users/lambe/Downloads/TyroLabs V2-handoff.zip\")",
       "Bash(unzip -o \"/c/Users/lambe/Downloads/TyroLabs V2-handoff.zip\" -d _handoff/)",
       "Bash(npx tsc *)",
-      "Bash(tasklist /FI \"IMAGENAME eq tyrolabs-toolbox.exe\")"
+      "Bash(tasklist /FI \"IMAGENAME eq tyrolabs-toolbox.exe\")",
+      "Bash(cargo check *)",
+      "Bash(npx vite *)",
+      "Bash(gh release *)",
+      "Bash(git add *)"
     ]
   }
 }

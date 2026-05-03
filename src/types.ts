@@ -1,6 +1,5 @@
 export type ItemType = "text" | "image" | "link";
 export type TextClipType = "text" | "code" | "link";
-export type ClipType = TextClipType | "image";
 
 export type TabId = "text" | "images" | "links" | "favs" | "colls";
 
@@ -54,10 +53,6 @@ export type AnyClip = TextClip | ImageClip;
 
 export function isImageClip(clip: AnyClip): clip is ImageClip {
   return clip.type === "image";
-}
-
-export function isTextClip(clip: AnyClip): clip is TextClip {
-  return clip.type !== "image";
 }
 
 export interface Theme {

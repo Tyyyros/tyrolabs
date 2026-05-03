@@ -191,25 +191,6 @@ pub fn get_history(state: tauri::State<'_, AppState>) -> Vec<Clip> {
 }
 
 #[tauri::command]
-pub fn clear_history(app: AppHandle, state: tauri::State<'_, AppState>) {
-    let mut history = state.clips.lock().unwrap();
-    // Identify image clips to delete
-    let to_remove: Vec<String> = history
-        .iter()
-        .filter(|c| c.collection_id.is_none() && c.hash.is_some())
-        .map(|c| c.hash.as_ref().unwrap().clone())
-        .collect();
-
-    for hash in to_remove {
-        delete_image_file(&app, &hash);
-    }
-
-    // Preserve grouped (permanent) items
-    history.retain(|c| c.collection_id.is_some());
-    save_history(&app, &history);
-}
-
-#[tauri::command]
 pub fn toggle_pinned(app: AppHandle, state: tauri::State<'_, AppState>, id: u64) {
     let mut history = state.clips.lock().unwrap();
     if let Some(clip) = history.iter_mut().find(|c| c.id == id) {
@@ -335,18 +316,6 @@ pub fn copy_image_to_clipboard(app: AppHandle, hash: String) -> Result<(), Strin
     };
     let mut cb = Clipboard::new().map_err(|e| e.to_string())?;
     cb.set_image(img_data).map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn start_screen_capture(delay: u64) -> Result<(), String> {
-    if delay > 0 {
-        tokio::time::sleep(tokio::time::Duration::from_secs(delay)).await;
-    }
-    std::process::Command::new("explorer")
-        .arg("ms-screenclip:")
-        .spawn()
-        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
