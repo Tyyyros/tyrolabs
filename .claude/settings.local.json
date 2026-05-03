@@ -22,7 +22,9 @@
       "Bash(cargo check *)",
       "Bash(npx vite *)",
       "Bash(gh release *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }
