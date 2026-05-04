@@ -5,6 +5,10 @@ use crate::models::{Clip, Collection};
 
 pub const STORE_FILE: &str = "clipboard_history.json";
 pub const HISTORY_KEY: &str = "history";
+/// Legacy key used by an earlier version of the app. Read as a fallback so we
+/// don't strand user data on upgrade; data is rewritten under HISTORY_KEY on
+/// the next save.
+const LEGACY_HISTORY_KEY: &str = "clipboard.history";
 pub const MAX_HISTORY: usize = 200;
 
 pub fn load_history(app: &AppHandle) -> Vec<Clip> {
@@ -12,10 +16,27 @@ pub fn load_history(app: &AppHandle) -> Vec<Clip> {
         Ok(s) => s,
         Err(_) => return vec![],
     };
-    store
+    let primary: Vec<Clip> = store
         .get(HISTORY_KEY)
         .and_then(|v| serde_json::from_value(v).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    let legacy: Vec<Clip> = store
+        .get(LEGACY_HISTORY_KEY)
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
+    if legacy.is_empty() {
+        return primary;
+    }
+    // Merge primary first (most recent / canonical state), then legacy items
+    // not already represented. Dedup by clip id.
+    let mut merged = primary;
+    let mut seen: std::collections::HashSet<u64> = merged.iter().map(|c| c.id).collect();
+    for c in legacy {
+        if seen.insert(c.id) {
+            merged.push(c);
+        }
+    }
+    merged
 }
 
 pub fn save_history(app: &AppHandle, history: &Vec<Clip>) {
@@ -24,6 +45,8 @@ pub fn save_history(app: &AppHandle, history: &Vec<Clip>) {
             HISTORY_KEY,
             serde_json::to_value(history).unwrap_or_default(),
         );
+        // Drop the legacy key so it doesn't keep shadowing future loads.
+        let _ = store.delete(LEGACY_HISTORY_KEY);
         let _ = store.save();
     }
 }
@@ -66,16 +89,33 @@ pub fn delete_image_file(app: &AppHandle, hash: &str) {
 }
 
 pub const COLLECTIONS_KEY: &str = "groups";
+const LEGACY_COLLECTIONS_KEY: &str = "clipboard.collections";
 
 pub fn load_collections(app: &AppHandle) -> Vec<Collection> {
     let store = match app.store(STORE_FILE) {
         Ok(s) => s,
         Err(_) => return vec![],
     };
-    store
+    let primary: Vec<Collection> = store
         .get(COLLECTIONS_KEY)
         .and_then(|v| serde_json::from_value(v).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    let legacy: Vec<Collection> = store
+        .get(LEGACY_COLLECTIONS_KEY)
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
+    if legacy.is_empty() {
+        return primary;
+    }
+    let mut merged = primary;
+    let mut seen: std::collections::HashSet<String> =
+        merged.iter().map(|c| c.id.clone()).collect();
+    for c in legacy {
+        if seen.insert(c.id.clone()) {
+            merged.push(c);
+        }
+    }
+    merged
 }
 
 pub fn save_collections(app: &AppHandle, collections: &Vec<Collection>) {
@@ -84,6 +124,7 @@ pub fn save_collections(app: &AppHandle, collections: &Vec<Collection>) {
             COLLECTIONS_KEY,
             serde_json::to_value(collections).unwrap_or_default(),
         );
+        let _ = store.delete(LEGACY_COLLECTIONS_KEY);
         let _ = store.save();
     }
 }
