@@ -95,3 +95,8 @@ button {
   --bg: #09090b;
   --sidebar: #0e0e10;
 }
+
+html.capture-mode,
+html.capture-mode body {
+  background: rgba(0, 0, 0, 0) !important;
+}

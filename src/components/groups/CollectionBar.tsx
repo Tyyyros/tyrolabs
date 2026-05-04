@@ -256,25 +256,23 @@ export function CollectionBar({
                 width: 36,
                 height: 36,
                 borderRadius: 8,
-                border: `1px solid rgba(39,39,42,0.35)`,
+                border: `1px solid ${theme.accent}`,
                 background: "transparent",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 cursor: "pointer",
-                color: C.t2,
-                transition: "all 0.12s",
+                color: theme.accent,
+                transition: "all 0.15s ease",
                 flexShrink: 0,
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.color = theme.accent;
-                e.currentTarget.style.borderColor = theme.accent;
                 e.currentTarget.style.background = hexToRgba(theme.accent, 0.1);
+                e.currentTarget.style.boxShadow = `0 4px 12px ${hexToRgba(theme.accent, 0.2)}`;
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.color = C.t2;
-                e.currentTarget.style.borderColor = "rgba(39,39,42,0.35)";
                 e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.boxShadow = "none";
               }}
             >
               <Ic.Home width={15} height={15} strokeWidth={2} />
@@ -300,7 +298,6 @@ export function CollectionBar({
           transition: "all 0.15s ease",
           flexShrink: 0,
           boxShadow: addHov ? `0 4px 12px ${hexToRgba(theme.accent, 0.2)}` : "none",
-          transform: addHov ? "translateY(-1px)" : "none",
         }}
       >
         <Ic.Plus width={16} height={16} strokeWidth={2.5} />

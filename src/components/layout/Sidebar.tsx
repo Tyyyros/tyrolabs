@@ -116,9 +116,7 @@ function CaptureBtn({ onCapture }: { onCapture: () => void }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: hov
-            ? `rgba(${theme.accentRGB}, 0.15)`
-            : `rgba(${theme.accentRGB}, 0.08)`,
+          background: hov ? `rgba(${theme.accentRGB}, 0.15)` : "transparent",
           border: "none",
           cursor: countdown === null ? "pointer" : "default",
           color: hov ? theme.accent : `rgba(${theme.accentRGB}, 0.7)`,

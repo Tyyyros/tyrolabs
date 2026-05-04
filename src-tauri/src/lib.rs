@@ -1,16 +1,17 @@
-mod capture;
-mod clipboard;
-mod commands;
+mod error;
 mod models;
-mod state;
-mod store;
-mod tray;
+mod services;
+mod tools;
 
-use crate::store::{load_collections, load_history};
-use state::{AppState, SuppressState};
 use std::sync::{Arc, Mutex};
 use tauri::{Manager, PhysicalPosition, WindowEvent};
 use tauri_plugin_autostart::ManagerExt;
+
+use crate::services::system;
+use crate::services::tray;
+use crate::tools::capture::{self, CaptureState};
+use crate::tools::clipboard::storage::{load_collections, load_history};
+use crate::tools::clipboard::{self, ClipboardState, SuppressState};
 
 const AUTOSTART_ARG: &str = "--autostart";
 
@@ -33,43 +34,48 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .manage(SuppressState(Arc::clone(&suppress)))
         .invoke_handler(tauri::generate_handler![
-            commands::is_production_build,
-            commands::set_always_on_top,
-            commands::get_history,
-            commands::clear_history,
-            commands::toggle_pinned,
-            commands::delete_clip,
-            commands::update_clip,
-            commands::suppress_next,
-            commands::reorder_clip,
-            commands::open_file_or_url,
-            commands::open_in_paint,
-            commands::get_image_path,
-            commands::copy_image_to_clipboard,
-            commands::start_screen_capture,
-            commands::get_collections,
-            commands::create_collection,
-            commands::update_collection,
-            commands::delete_collection,
-            commands::set_clip_collection,
-            commands::ungroup_clip,
-            commands::reorder_clips_in_collection,
-            commands::delete_clips,
-            commands::set_clips_collection,
-            commands::get_capture_context,
-            commands::save_capture_area,
-            commands::open_capture_overlay,
-            commands::add_manual_clip,
-            commands::get_system_info
+            // services/system : primitives OS partagées
+            system::is_production_build,
+            system::set_always_on_top,
+            system::open_file_or_url,
+            system::open_in_paint,
+            system::get_system_info,
+            // tools/clipboard
+            clipboard::get_history,
+            clipboard::clear_history,
+            clipboard::toggle_pinned,
+            clipboard::delete_clip,
+            clipboard::delete_clips,
+            clipboard::update_clip,
+            clipboard::suppress_next,
+            clipboard::reorder_clip,
+            clipboard::add_manual_clip,
+            clipboard::get_image_path,
+            clipboard::copy_image_to_clipboard,
+            clipboard::get_collections,
+            clipboard::create_collection,
+            clipboard::update_collection,
+            clipboard::delete_collection,
+            clipboard::set_clip_collection,
+            clipboard::set_clips_collection,
+            clipboard::ungroup_clip,
+            clipboard::reorder_clips_in_collection,
+            // tools/capture
+            capture::prepare_capture,
+            capture::get_capture_data,
+            capture::cancel_capture,
+            capture::save_capture_area,
+            capture::start_screen_capture,
         ])
         .setup(move |app| {
             // Load initial data into memory
             let history = load_history(app.handle());
             let collections = load_collections(app.handle());
-            app.manage(AppState {
+            app.manage(ClipboardState {
                 clips: Mutex::new(history),
                 collections: Mutex::new(collections),
             });
+            app.manage(CaptureState::default());
 
             let app_handle = app.handle().clone();
             let last = Arc::clone(&last_text);
@@ -103,16 +109,59 @@ pub fn run() {
                         - 48; // 48px for taskbar
                     let _ = window.set_position(PhysicalPosition::new(x, y));
                 }
+
+                // Désactive les animations DWM (minimize/restore/maximize) sur la
+                // fenêtre principale → minimize avant capture est instantané.
+                #[cfg(windows)]
+                unsafe {
+                    use windows::core::BOOL;
+                    use windows::Win32::Foundation::HWND;
+                    use windows::Win32::Graphics::Dwm::{
+                        DwmSetWindowAttribute, DWMWA_TRANSITIONS_FORCEDISABLED,
+                    };
+                    if let Ok(tauri_hwnd) = window.hwnd() {
+                        // Tauri tire windows 0.61 ; on linke 0.62 → conversion par le pointeur sous-jacent.
+                        let hwnd = HWND(tauri_hwnd.0 as _);
+                        let disable = BOOL::from(true);
+                        let _ = DwmSetWindowAttribute(
+                            hwnd,
+                            DWMWA_TRANSITIONS_FORCEDISABLED,
+                            &disable as *const _ as *const std::ffi::c_void,
+                            std::mem::size_of::<BOOL>() as u32,
+                        );
+                    }
+                }
+
                 if !silent_autostart {
                     let _ = window.show();
                     let _ = window.set_focus();
                 }
             }
 
+            // ── Pré-spawn de l'overlay de capture (caché) ──
+            // À chaque déclenchement on ne fait que repositionner + show().
+            // Évite le coût de création de webview à chaque capture (~100-150 ms).
+            let _ = tauri::WebviewWindowBuilder::new(
+                app,
+                "capture",
+                tauri::WebviewUrl::App("/capture".into()),
+            )
+            .inner_size(800.0, 600.0)
+            .position(0.0, 0.0)
+            .transparent(true)
+            .decorations(false)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .resizable(false)
+            .visible(false)
+            .build()?;
+
             Ok(())
         })
         .on_window_event(|window, event| match event {
-            WindowEvent::CloseRequested { api, .. } if window.label() == "main" => {
+            WindowEvent::CloseRequested { api, .. }
+                if window.label() == "main" || window.label() == "capture" =>
+            {
                 let _ = window.hide();
                 api.prevent_close();
             }

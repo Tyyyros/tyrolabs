@@ -27,7 +27,12 @@
       "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost https://asset.localhost data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'",
       "assetProtocol": {
         "enable": true,
-        "scope": ["$APPDATA/images/**", "$APPDATA/images/**/*"]
+        "scope": [
+          "$APPDATA/images/**",
+          "$APPDATA/images/**/*",
+          "$APPDATA/captures/**",
+          "$APPDATA/captures/**/*"
+        ]
       }
     }
   },

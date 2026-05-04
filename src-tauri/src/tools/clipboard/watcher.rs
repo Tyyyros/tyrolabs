@@ -7,8 +7,8 @@ use std::{
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::models::{now_date_time, Clip};
-use crate::state::AppState;
-use crate::store::{delete_image_file, save_history, truncate_history};
+use crate::tools::clipboard::state::ClipboardState;
+use crate::tools::clipboard::storage::{delete_image_file, save_history, truncate_history};
 
 fn rgb_to_hue(r: f32, g: f32, b: f32) -> f32 {
     let r = r / 255.0;
@@ -110,7 +110,7 @@ pub fn start_clipboard_watcher(
                         sort_order: 0,
                     };
 
-                    let state = app.state::<AppState>();
+                    let state = app.state::<ClipboardState>();
                     let mut history = state.clips.lock().unwrap();
                     if !history.is_empty() && history[0].hash.as_deref() == Some(&img_hash) {
                         continue;
@@ -152,7 +152,7 @@ pub fn start_clipboard_watcher(
             *last = text.clone();
             drop(last);
 
-            let state = app.state::<AppState>();
+            let state = app.state::<ClipboardState>();
             let mut history = state.clips.lock().unwrap();
 
             if history.first().map(|c| c.text.as_str()) == Some(text.as_str()) {

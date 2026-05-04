@@ -95,7 +95,4 @@ export interface WindowRect {
   title: string;
 }
 
-export interface CaptureContext {
-  screenshot: string;
-  windows: WindowRect[];
-}
+

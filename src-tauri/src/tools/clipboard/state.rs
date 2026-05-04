@@ -1,11 +1,12 @@
 use crate::models::{Clip, Collection};
 use std::sync::{Arc, Mutex};
 
-/// Shared state to let the frontend tell the watcher to ignore
-/// the next clipboard change (when the app itself copies text).
+/// Permet au frontend d'indiquer au watcher d'ignorer
+/// la prochaine modification du presse-papiers (quand l'app copie elle-même).
 pub struct SuppressState(pub Arc<Mutex<Option<String>>>);
 
-pub struct AppState {
+/// État runtime de l'outil Clipboard.
+pub struct ClipboardState {
     pub clips: Mutex<Vec<Clip>>,
     pub collections: Mutex<Vec<Collection>>,
 }

@@ -1,13 +1,24 @@
+//! Persistance et opérations sur la liste des clips et des collections.
+
 use tauri::{AppHandle, Manager};
 use tauri_plugin_store::StoreExt;
 
 use crate::models::{Clip, Collection};
+use crate::services::store::{migrate_key, STORE_FILE};
 
-pub const STORE_FILE: &str = "clipboard_history.json";
-pub const HISTORY_KEY: &str = "history";
 pub const MAX_HISTORY: usize = 200;
 
+const HISTORY_KEY: &str = "clipboard.history";
+const COLLECTIONS_KEY: &str = "clipboard.collections";
+
+// Anciennes clés (avant namespacing) — migrées au premier load.
+const LEGACY_HISTORY_KEY: &str = "history";
+const LEGACY_COLLECTIONS_KEY: &str = "groups";
+
+// ── History ──────────────────────────────────────────────────────────
+
 pub fn load_history(app: &AppHandle) -> Vec<Clip> {
+    migrate_key(app, LEGACY_HISTORY_KEY, HISTORY_KEY);
     let store = match app.store(STORE_FILE) {
         Ok(s) => s,
         Err(_) => return vec![],
@@ -29,11 +40,10 @@ pub fn save_history(app: &AppHandle, history: &Vec<Clip>) {
 }
 
 /// Truncate history while preserving grouped (permanent) items.
-/// Returns a list of hashes for images that were removed.
+/// Returns the list of hashes for images that were removed.
 pub fn truncate_history(history: &mut Vec<Clip>) -> Vec<String> {
     let mut removed_hashes = Vec::new();
 
-    // Partition in-place: grouped items move to the end, ungrouped to the beginning
     let (mut ungrouped, grouped): (Vec<_>, Vec<_>) = std::mem::take(history)
         .into_iter()
         .partition(|c| c.collection_id.is_none());
@@ -48,7 +58,6 @@ pub fn truncate_history(history: &mut Vec<Clip>) -> Vec<String> {
     }
 
     *history = ungrouped;
-    // Re-insert grouped items
     for g in grouped {
         if !history.iter().any(|c| c.id == g.id) {
             history.push(g);
@@ -65,9 +74,10 @@ pub fn delete_image_file(app: &AppHandle, hash: &str) {
     }
 }
 
-pub const COLLECTIONS_KEY: &str = "groups";
+// ── Collections ──────────────────────────────────────────────────────
 
 pub fn load_collections(app: &AppHandle) -> Vec<Collection> {
+    migrate_key(app, LEGACY_COLLECTIONS_KEY, COLLECTIONS_KEY);
     let store = match app.store(STORE_FILE) {
         Ok(s) => s,
         Err(_) => return vec![],

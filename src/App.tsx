@@ -6,6 +6,7 @@ import { C } from "./lib/colors";
 import { Ic } from "./components/icons";
 import { TitleBar } from "./components/layout/TitleBar";
 import { Sidebar } from "./components/layout/Sidebar";
+import { StatusBar } from "./components/layout/StatusBar";
 import { CollectionBar } from "./components/groups/CollectionBar";
 import { TextTab } from "./components/tabs/TextTab";
 import { ImagesTab } from "./components/tabs/ImagesTab";
@@ -18,7 +19,7 @@ import { CreateCollectionModal } from "./components/groups/CreateCollectionModal
 import { EditorPanel } from "./components/overlays/EditorPanel";
 import { useClipboardStore } from "./lib/clipboard-store";
 import { type TabId, type ItemType, type ThemeId, type AnyClip, type TextClip, type ImageClip } from "./types";
-import { DndContext, rectIntersection, PointerSensor, useSensor, useSensors, DragOverlay, type DragStartEvent, type DragEndEvent } from "@dnd-kit/core";
+import { DndContext, pointerWithin, PointerSensor, useSensor, useSensors, DragOverlay, type DragStartEvent, type DragEndEvent } from "@dnd-kit/core";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -49,7 +50,7 @@ export default function App() {
   const [autoCap, setAutoCap] = useState(true);
   const [activeDragItem, setActiveDragItem] = useState<{ id: number; type: ItemType } | null>(null);
   const [editingItem, setEditingItem] = useState<{ item: AnyClip; type: ItemType } | null>(null);
-  const [alwaysOnTop, setAlwaysOnTop] = useState(false);
+  const [alwaysOnTop, setAlwaysOnTop] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
 
   const {
@@ -92,6 +93,11 @@ export default function App() {
 
   useEffect(() => {
     const unlisten = listen("open-settings", () => setSettOpen(true));
+    return () => { unlisten.then(f => f()); };
+  }, []);
+
+  useEffect(() => {
+    const unlisten = listen("capture://done", () => setActiveTab("images"));
     return () => { unlisten.then(f => f()); };
   }, []);
 
@@ -150,6 +156,17 @@ export default function App() {
   const filteredImages = useMemo(() => filterByQuery(baseImages) as ImageClip[], [baseImages, q]);
   const autoLinks = useMemo(() => baseText.filter(c => isLinkOrPath(c.text)), [baseText]);
   const filteredLinks = useMemo(() => filterByQuery(autoLinks) as TextClip[], [autoLinks, q]);
+  const activeCollectionName = useMemo(
+    () => collections.find((collection) => collection.id === activeCollectionId)?.name ?? null,
+    [collections, activeCollectionId],
+  );
+  const statusCount = useMemo(() => {
+    if (activeTab === "images") return filteredImages.length;
+    if (activeTab === "links") return filteredLinks.length;
+    if (activeTab === "favs") return textClips.filter(c => c.pinned).length + imageClips.filter(c => c.pinned).length;
+    if (activeTab === "colls") return collections.length;
+    return filteredText.length;
+  }, [activeTab, filteredImages.length, filteredLinks.length, filteredText.length, textClips, imageClips, collections.length]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -228,7 +245,10 @@ export default function App() {
   }, [selection, activeTab, filteredText, filteredImages, filteredLinks]);
 
   const handleCapture = () => {
-    invoke("open_capture_overlay").catch(console.error);
+    invoke("prepare_capture").catch((e) => {
+      console.error(e);
+      fire("Erreur lors de la préparation de la capture");
+    });
   };
 
   const handleDoubleClick = (id: number, type: ItemType) => {
@@ -280,13 +300,16 @@ export default function App() {
             autoCap={autoCap}
           />
           <main style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column", minWidth: 0, background: "var(--bg)" }}>
-            <DndContext sensors={sensors} collisionDetection={rectIntersection} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+            <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
               <CollectionBar
                 collections={collections}
                 activeCollectionId={activeCollectionId}
                 onSelectCollection={setActiveCollectionId}
                 onCreateCollection={() => setCreateCollectionOpen(true)}
-                onDeleteCollection={deleteCollection}
+                onDeleteCollection={(id) => {
+                  deleteCollection(id);
+                  if (activeCollectionId === id) setActiveCollectionId(null);
+                }}
                 onRenameCollection={(id, name) => updateCollection(id, name, "", "")}
                 collectionClipCounts={collectionCounts}
               />
@@ -323,6 +346,12 @@ export default function App() {
             </DndContext>
           </main>
         </div>
+        <StatusBar
+          tab={activeTab}
+          visibleCount={statusCount}
+          selectedCount={selection.size}
+          collectionName={activeCollectionName}
+        />
         {ctx && <CtxMenu x={ctx.x} y={ctx.y} item={ctx.item} itemType={ctx.itemType} handlers={getHandlers(ctx.item, ctx.itemType)} />}
         {sysOpen && <SysDrawer onClose={() => setSysOpen(false)} />}
         {settOpen && <Settings onClose={() => setSettOpen(false)} themeName={themeName} onThemeChange={setThemeName} autoCap={autoCap} onAutoCapChange={setAutoCap} />}

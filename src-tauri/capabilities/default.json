@@ -16,6 +16,7 @@
     "store:allow-save",
     "core:window:allow-show",
     "core:window:allow-hide",
+    "core:window:allow-set-focus",
     "core:event:default"
   ]
 }
