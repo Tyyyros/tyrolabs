@@ -137,16 +137,6 @@ export function useClipboardStore() {
     setImageClips((prev) => toggle(prev));
   }, []);
 
-  const deleteClip = useCallback((id: number, itemType: ItemType) => {
-    if (isTextualItemType(itemType)) {
-      invoke("delete_clip", { id }).catch(console.error);
-      setTextClips((prev) => prev.filter((clip) => clip.id !== id));
-      return;
-    }
-
-    setImageClips((prev) => prev.filter((clip) => clip.id !== id));
-  }, []);
-
   const deleteClips = useCallback((ids: number[], itemType: ItemType) => {
     invoke("delete_clips", { ids }).catch(console.error);
     if (isTextualItemType(itemType)) {
@@ -204,13 +194,6 @@ export function useClipboardStore() {
     setImageClips((prev) => prev.map((c) => (c.collection_id === id ? { ...c, collection_id: null, sort_order: 0 } : c)));
   }, []);
 
-  const setClipCollection = useCallback(async (clipId: number, collectionId: string, sortOrder: number) => {
-    await invoke("set_clip_collection", { clipId, collectionId, sortOrder });
-    const update = <T extends { id: number; collection_id?: string | null; sort_order?: number }>(prev: T[]) => prev.map((c) => (c.id === clipId ? { ...c, collection_id: collectionId, sort_order: sortOrder } : c));
-    setTextClips(update);
-    setImageClips(update);
-  }, []);
-
   const setClipsCollection = useCallback(async (clipIds: number[], collectionId: string) => {
     await invoke("set_clips_collection", { clipIds, collectionId });
     const update = <T extends { id: number; collection_id?: string | null }>(prev: T[]) => prev.map((c) => (clipIds.includes(c.id) ? { ...c, collection_id: collectionId } : c));
@@ -237,17 +220,14 @@ export function useClipboardStore() {
     textClips,
     imageClips,
     collections,
-    copyClip,
     copyAndPromoteClip,
     togglePinned,
-    deleteClip,
     deleteClips,
     openClip,
     updateTextClip,
     createCollection,
     updateCollection,
     deleteCollection,
-    setClipCollection,
     setClipsCollection,
     ungroupClip,
     reorderInCollection,

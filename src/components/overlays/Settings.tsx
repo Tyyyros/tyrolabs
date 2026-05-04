@@ -157,9 +157,7 @@ export function Settings({ onClose, themeName, onThemeChange, autoCap, onAutoCap
           <Row label="Capture auto">
             <Toggle value={autoCap} onChange={onAutoCapChange} />
           </Row>
-          <div style={{ padding: "11px 0", borderBottom: `1px solid ${C.borderDim}` }}>
-            <AutostartToggle />
-          </div>
+          <AutostartToggle />
           <Row label="Notifications">
             <Toggle value={notifs} onChange={setNotifs} />
           </Row>

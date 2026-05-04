@@ -218,7 +218,6 @@ interface Props {
   onSettings: () => void;
   onSystem: () => void;
   onCapture: () => void;
-  autoCap: boolean;
 }
 
 export function Sidebar({ activeTab, onTab, onSettings, onSystem, onCapture }: Props) {

@@ -297,7 +297,6 @@ export default function App() {
             onSettings={() => setSettOpen(true)}
             onSystem={() => setSysOpen(true)}
             onCapture={handleCapture}
-            autoCap={autoCap}
           />
           <main style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column", minWidth: 0, background: "var(--bg)" }}>
             <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
