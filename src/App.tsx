@@ -49,7 +49,7 @@ export default function App() {
   const [autoCap, setAutoCap] = useState(true);
   const [activeDragItem, setActiveDragItem] = useState<{ id: number; type: ItemType } | null>(null);
   const [editingItem, setEditingItem] = useState<{ item: AnyClip; type: ItemType } | null>(null);
-  const [alwaysOnTop, setAlwaysOnTop] = useState(false);
+  const [alwaysOnTop, setAlwaysOnTop] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
 
   const {
