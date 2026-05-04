@@ -302,17 +302,3 @@ pub async fn save_capture_area(
 
     Ok(())
 }
-
-/// Lance l'outil de capture natif Windows (ms-screenclip). Conservé pour la
-/// compatibilité avec le bouton historique ; non utilisé par l'overlay custom.
-#[tauri::command]
-pub async fn start_screen_capture(delay: u64) -> ToolResult<()> {
-    if delay > 0 {
-        tokio::time::sleep(tokio::time::Duration::from_secs(delay)).await;
-    }
-    std::process::Command::new("explorer")
-        .arg("ms-screenclip:")
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    Ok(())
-}

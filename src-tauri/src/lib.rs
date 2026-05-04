@@ -42,7 +42,6 @@ pub fn run() {
             system::get_system_info,
             // tools/clipboard
             clipboard::get_history,
-            clipboard::clear_history,
             clipboard::toggle_pinned,
             clipboard::delete_clip,
             clipboard::delete_clips,
@@ -65,7 +64,6 @@ pub fn run() {
             capture::get_capture_data,
             capture::cancel_capture,
             capture::save_capture_area,
-            capture::start_screen_capture,
         ])
         .setup(move |app| {
             // Load initial data into memory

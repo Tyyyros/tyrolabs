@@ -55,23 +55,6 @@ pub fn get_history(state: tauri::State<'_, ClipboardState>) -> Vec<Clip> {
 }
 
 #[tauri::command]
-pub fn clear_history(app: AppHandle, state: tauri::State<'_, ClipboardState>) {
-    let mut history = state.clips.lock().unwrap();
-    let to_remove: Vec<String> = history
-        .iter()
-        .filter(|c| c.collection_id.is_none() && c.hash.is_some())
-        .map(|c| c.hash.as_ref().unwrap().clone())
-        .collect();
-
-    for hash in to_remove {
-        delete_image_file(&app, &hash);
-    }
-
-    history.retain(|c| c.collection_id.is_some());
-    save_history(&app, &history);
-}
-
-#[tauri::command]
 pub fn toggle_pinned(app: AppHandle, state: tauri::State<'_, ClipboardState>, id: u64) {
     let mut history = state.clips.lock().unwrap();
     if let Some(clip) = history.iter_mut().find(|c| c.id == id) {
