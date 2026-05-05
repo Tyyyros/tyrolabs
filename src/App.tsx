@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import React from "react";
 import { ThemeProvider } from "./lib/theme";
 import { THEMES } from "./themes";
-import { C } from "./lib/colors";
+import { C, hexToRgba } from "./lib/colors";
 import { Ic } from "./components/icons";
 import { TitleBar } from "./components/layout/TitleBar";
 import { Sidebar } from "./components/layout/Sidebar";
@@ -19,12 +19,43 @@ import { CreateCollectionModal } from "./components/groups/CreateCollectionModal
 import { EditorPanel } from "./components/overlays/EditorPanel";
 import { useClipboardStore } from "./lib/clipboard-store";
 import { type TabId, type ItemType, type ThemeId, type AnyClip, type TextClip, type ImageClip, type CollectionSilo, type Collection } from "./types";
-import { DndContext, pointerWithin, PointerSensor, useSensor, useSensors, DragOverlay, type DragStartEvent, type DragEndEvent } from "@dnd-kit/core";
+import { DndContext, pointerWithin, PointerSensor, useSensor, useSensors, DragOverlay, type DragStartEvent, type DragEndEvent, type Modifier } from "@dnd-kit/core";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
 
 const TOAST_MS = 2400;
+
+function getEventClientPoint(event: Event | null) {
+  if (event instanceof MouseEvent || event instanceof PointerEvent) {
+    return { x: event.clientX, y: event.clientY };
+  }
+
+  if (event instanceof TouchEvent) {
+    const touch = event.touches[0] ?? event.changedTouches[0];
+    if (touch) return { x: touch.clientX, y: touch.clientY };
+  }
+
+  return null;
+}
+
+const snapOverlayToCursor: Modifier = ({
+  activeNodeRect,
+  activatorEvent,
+  draggingNodeRect,
+  overlayNodeRect,
+  transform,
+}) => {
+  const point = getEventClientPoint(activatorEvent);
+  const overlayRect = overlayNodeRect ?? draggingNodeRect;
+  if (!point || !activeNodeRect || !overlayRect) return transform;
+
+  return {
+    ...transform,
+    x: transform.x + point.x - activeNodeRect.left - overlayRect.width / 2,
+    y: transform.y + point.y - activeNodeRect.top - overlayRect.height / 2,
+  };
+};
 
 export function isLinkOrPath(text: string) {
   const t = text.trim();
@@ -102,18 +133,29 @@ export default function App() {
   };
 
   useEffect(() => {
-    const closeCtx = () => setCtx(null);
+    const onDocClick = (e: MouseEvent) => {
+      setCtx(null);
+      // Vide la sélection si le clic n'est pas dans une zone qui doit la
+      // préserver (rows, CollectionBar, modals, etc. — taggés avec
+      // data-keep-selection).
+      const target = e.target as Element | null;
+      if (!target || !target.closest("[data-keep-selection]")) {
+        setSelection(new Set());
+        setSelectedId(null);
+      }
+    };
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setSelection(new Set());
+        setSelectedId(null);
         setCtx(null);
         setEditingItem(null);
       }
     };
-    document.addEventListener("click", closeCtx);
+    document.addEventListener("click", onDocClick);
     document.addEventListener("keydown", handleEsc);
     return () => {
-      document.removeEventListener("click", closeCtx);
+      document.removeEventListener("click", onDocClick);
       document.removeEventListener("keydown", handleEsc);
     };
   }, []);
@@ -128,32 +170,60 @@ export default function App() {
     return () => { unlisten.then(f => f()); };
   }, []);
 
+  /**
+   * Sélection / désélection d'un clip au clic.
+   *
+   * Sémantique :
+   * - plain click sur item non sélectionné         → selection = {id}, anchor = id
+   * - plain click sur item seul sélectionné        → selection = ∅,    anchor = null
+   * - plain click sur item dans multi-sélection    → selection = {id}, anchor = id  (réduit)
+   * - Ctrl+click                                   → toggle id ; anchor = id si ajout
+   * - Shift+click avec anchor                      → range [anchor..id] (remplace, pas d'union)
+   * - Shift+click sans anchor                      → traité comme plain click
+   */
   const handleSelect = (id: number, e: React.MouseEvent, list: AnyClip[]) => {
     const isMulti = e.ctrlKey || e.metaKey;
     const isShift = e.shiftKey;
-    if (isMulti) {
-      setSelection(prev => {
-        const next = new Set(prev);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        return next;
-      });
-      setSelectedId(id);
-    } else if (isShift && selectedId !== null) {
-      const idxA = list.findIndex(c => c.id === selectedId);
-      const idxB = list.findIndex(c => c.id === id);
+
+    if (isShift && selectedId !== null) {
+      const idxA = list.findIndex((c) => c.id === selectedId);
+      const idxB = list.findIndex((c) => c.id === id);
       if (idxA !== -1 && idxB !== -1) {
         const start = Math.min(idxA, idxB);
         const end = Math.max(idxA, idxB);
-        const range = list.slice(start, end + 1).map(c => c.id);
-        setSelection(new Set([...Array.from(selection), ...range]));
+        const range = list.slice(start, end + 1).map((c) => c.id);
+        setSelection(new Set(range));
       }
-      setSelectedId(id);
+      // anchor reste sur selectedId pour permettre l'extension successive
+      return;
+    }
+
+    if (isMulti) {
+      setSelection((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) {
+          next.delete(id);
+          if (selectedId === id) {
+            const fallbackId = list.find((item) => next.has(item.id))?.id ?? null;
+            setSelectedId(fallbackId);
+          }
+        } else {
+          next.add(id);
+          setSelectedId(id);
+        }
+        return next;
+      });
+      return;
+    }
+
+    // Plain click
+    const isSoloSelected = selection.size === 1 && selection.has(id);
+    if (isSoloSelected) {
+      setSelection(new Set());
+      setSelectedId(null);
     } else {
-      if (!selection.has(id)) {
-        setSelection(new Set([id]));
-        setSelectedId(id);
-      }
+      setSelection(new Set([id]));
+      setSelectedId(id);
     }
   };
 
@@ -199,7 +269,15 @@ export default function App() {
   const handleDragStart = (e: DragStartEvent) => {
     const clipId = e.active.data.current?.clipId;
     const type = e.active.data.current?.type;
-    if (clipId && type) setActiveDragItem({ id: clipId, type });
+    if (!clipId || !type) return;
+    setActiveDragItem({ id: clipId, type });
+    // Si on drague un item hors de la sélection courante, on bascule la
+    // sélection sur lui (comme Finder/Explorer). Si l'item EST dans la
+    // sélection, on conserve la sélection multiple (drag de groupe).
+    if (!selection.has(clipId)) {
+      setSelection(new Set([clipId]));
+      setSelectedId(clipId);
+    }
   };
 
   const handleDragEnd = (e: DragEndEvent) => {
@@ -307,7 +385,10 @@ export default function App() {
 
   const handleCtx = ({ e, item, itemType }: { e: React.MouseEvent; item: AnyClip; itemType: ItemType }) => {
     e.preventDefault();
-    setSelectedId(item.id);
+    if (!selection.has(item.id)) {
+      setSelection(new Set([item.id]));
+      setSelectedId(item.id);
+    }
     setCtx({ x: e.clientX, y: e.clientY, item, itemType });
   };
 
@@ -367,20 +448,39 @@ export default function App() {
                 />
               )}
               <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-                {activeTab === "text" && <TextTab clips={filteredText} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selectedId={selectedId} selection={selection} onSelect={handleSelect} />}
-                {activeTab === "images" && <ImagesTab images={filteredImages} gridCols={3} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selectedId={selectedId} selection={selection} onSelect={handleSelect} />}
-                {activeTab === "links" && <LinksTab links={filteredLinks} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selectedId={selectedId} selection={selection} onSelect={handleSelect} />}
+                {activeTab === "text" && <TextTab clips={filteredText} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selection={selection} onSelect={handleSelect} />}
+                {activeTab === "images" && <ImagesTab images={filteredImages} gridCols={3} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selection={selection} onSelect={handleSelect} />}
+                {activeTab === "links" && <LinksTab links={filteredLinks} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selection={selection} onSelect={handleSelect} />}
                 {activeTab === "favs" && (
                   <div style={{ flex: 1, overflowY: "auto" }}>
-                    <TextTab clips={textClips.filter(c => c.pinned)} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selectedId={selectedId} selection={selection} onSelect={handleSelect} />
-                    <ImagesTab images={imageClips.filter(c => c.pinned)} gridCols={3} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selectedId={selectedId} selection={selection} onSelect={handleSelect} />
+                    <TextTab clips={textClips.filter(c => c.pinned)} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selection={selection} onSelect={handleSelect} />
+                    <ImagesTab images={imageClips.filter(c => c.pinned)} gridCols={3} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selection={selection} onSelect={handleSelect} />
                   </div>
                 )}
-                <DragOverlay>
+                <DragOverlay adjustScale={false} modifiers={[snapOverlayToCursor]}>
                   {activeDragItem && (
-                    <div style={{ height: 34, display: "flex", alignItems: "center", padding: "0 12px 0 2px", background: C.accent, color: "#fff", borderRadius: 8, fontSize: 13, fontWeight: 600, boxShadow: "0 8px 24px rgba(0,0,0,0.4)", gap: 10, pointerEvents: "none", transform: "scale(1.05)" }}>
-                      {activeDragItem.type === "image" ? <Ic.Image width={16} height={16} /> : <Ic.Text width={16} height={16} />}
-                      <span>{selection.size > 1 ? `${selection.size} éléments` : "1 élément"}</span>
+                    <div
+                      style={{
+                        height: 22,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "0 7px",
+                        background: hexToRgba(theme.accent, 0.95),
+                        color: "#fff",
+                        border: `1px solid ${theme.accent}`,
+                        borderRadius: 11,
+                        fontSize: 10.5,
+                        fontFamily: theme.fontMono,
+                        fontWeight: 600,
+                        boxShadow: "0 3px 10px rgba(0,0,0,0.32)",
+                        gap: 4,
+                        pointerEvents: "none",
+                        animation: "dragOverlayFadeIn 100ms ease-out",
+                      }}
+                    >
+                      {activeDragItem.type === "image" ? <Ic.Image width={10} height={10} /> : <Ic.Text width={10} height={10} />}
+                      <span>{selection.size > 1 ? selection.size : 1}</span>
                     </div>
                   )}
                 </DragOverlay>
@@ -416,6 +516,12 @@ export default function App() {
             if (activeSilo) createCollection(activeSilo, name, icon, color);
           }}
         />
+        <style>{`
+          @keyframes dragOverlayFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+        `}</style>
         {toast && <Toast msg={toast} />}
       </div>
     </ThemeProvider>

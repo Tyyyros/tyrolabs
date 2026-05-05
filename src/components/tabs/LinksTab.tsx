@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { TextClip, ItemType, Theme } from "../../types";
 import { useTheme } from "../../lib/theme";
-import { C } from "../../lib/colors";
+import { C, hexToRgba } from "../../lib/colors";
 import { Ic } from "../icons";
 import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -16,7 +16,6 @@ interface Props {
   links: TextClip[];
   onCtx: (a: CtxArgs) => void;
   onDoubleClick: (id: number, type: ItemType) => void;
-  selectedId: number | null;
   selection: Set<number>;
   onSelect: (id: number, e: React.MouseEvent, list: TextClip[]) => void;
 }
@@ -33,7 +32,7 @@ function extractInfo(text: string): { isUrl: boolean; label: string; sub: string
   }
 }
 
-export function LinksTab({ links, onCtx, onDoubleClick, selectedId, selection, onSelect }: Props) {
+export function LinksTab({ links, onCtx, onDoubleClick, selection, onSelect }: Props) {
   const theme = useTheme();
   const sorted = useMemo(
     () => [...links.filter((c) => c.pinned), ...links.filter((c) => !c.pinned)],
@@ -74,7 +73,7 @@ export function LinksTab({ links, onCtx, onDoubleClick, selectedId, selection, o
               info={info}
               onCtx={onCtx}
               onDoubleClick={onDoubleClick}
-              selected={selectedId === clip.id || selection.has(clip.id)}
+              selected={selection.has(clip.id)}
               onSelect={(id, e) => onSelect(id, e, sorted)}
               theme={theme}
               index={i}
@@ -111,15 +110,23 @@ function LinkRow({
     data: { clipId: clip.id, type: "link" },
   });
 
+  const background = (() => {
+    if (selected && clip.pinned) return hexToRgba(theme.accent, 0.22);
+    if (selected) return hexToRgba(theme.accent, 0.18);
+    if (clip.pinned) return hexToRgba(theme.accent, 0.04);
+    if (hov) return C.rowHov;
+    return index % 2 === 0 ? "rgba(128,128,128,0.04)" : "transparent";
+  })();
+
   const style = {
     height: 44,
     display: "flex",
     alignItems: "center",
     padding: "0 12px 0 6px",
     gap: 10,
-    background: selected ? "rgba(79, 70, 229, 0.15)" : hov ? C.rowHov : index % 2 === 0 ? "rgba(128,128,128,0.04)" : "transparent",
+    background,
     borderBottom: `1px solid ${C.borderDim}`,
-    borderLeft: clip.pinned ? `4px solid ${theme.accent}` : selected ? `4px solid ${C.accent}` : "4px solid transparent",
+    borderLeft: clip.pinned ? `3px solid ${theme.accent}` : "3px solid transparent",
     cursor: isDragging ? "grabbing" : "default",
     transition: transition || "all 0.1s ease",
     userSelect: "none" as const,
@@ -132,13 +139,14 @@ function LinkRow({
   return (
     <div
       ref={setNodeRef}
+      data-keep-selection
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       onContextMenu={(e) => {
         e.preventDefault();
         onCtx({ e, item: clip, itemType: "link" });
       }}
-      onMouseDown={(e) => onSelect(clip.id, e)}
+      onClick={(e) => onSelect(clip.id, e)}
       onDoubleClick={() => onDoubleClick(clip.id, "link")}
       style={style}
       {...attributes}
@@ -146,6 +154,13 @@ function LinkRow({
     >
 
 
+      {clip.pinned && (
+        <Ic.PinFill
+          width={11}
+          height={11}
+          style={{ color: theme.accent, flexShrink: 0, opacity: 0.85 }}
+        />
+      )}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{

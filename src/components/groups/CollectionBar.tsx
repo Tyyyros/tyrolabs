@@ -58,6 +58,7 @@ function CollectionSlot({
   return (
     <div
       ref={setNodeRef}
+      data-keep-selection
       onClick={onClick}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
@@ -67,17 +68,20 @@ function CollectionSlot({
         maxWidth: 140,
         height: 36,
         borderRadius: 8,
-        border: `1px solid ${collection.color}`,
-        background: "transparent",
+        border: isOver ? `2px solid ${collection.color}` : `1px solid ${collection.color}`,
+        background: isOver ? hexToRgba(collection.color, 0.18) : "transparent",
         display: "flex",
         alignItems: "center",
         padding: "0 10px",
         gap: 7,
         cursor: "pointer",
-        transition: "border-color 0.12s, background 0.12s",
+        transition: "all 0.12s ease",
         flexShrink: 0,
         overflow: "hidden",
-        boxShadow: isOver ? `0 0 12px ${hexToRgba(collection.color, 0.25)}` : "none",
+        boxShadow: isOver
+          ? `0 0 0 3px ${hexToRgba(collection.color, 0.25)}, 0 6px 18px ${hexToRgba(collection.color, 0.35)}`
+          : "none",
+        transform: isOver ? "scale(1.06)" : "scale(1)",
       }}
     >
       <span style={{ fontSize: 14, flexShrink: 0, pointerEvents: "none" }}>{collection.icon}</span>
@@ -187,6 +191,7 @@ export function CollectionBar({
   if (collections.length === 0 && !activeCollectionId) {
     return (
       <div
+        data-keep-selection
         style={{
           height: 48,
           display: "flex",
@@ -197,6 +202,7 @@ export function CollectionBar({
         }}
       >
         <button
+          data-keep-selection
           onClick={onCreateCollection}
           onMouseEnter={() => setAddHov(true)}
           onMouseLeave={() => setAddHov(false)}
@@ -227,6 +233,7 @@ export function CollectionBar({
 
   return (
     <div
+      data-keep-selection
       style={{
         height: 52,
         display: "flex",
@@ -251,6 +258,7 @@ export function CollectionBar({
           }}
         >
             <div
+              data-keep-selection
               onClick={() => onSelectCollection(null)}
               style={{
                 width: 36,
@@ -281,6 +289,7 @@ export function CollectionBar({
 
       {/* Add collection button */}
       <button
+        data-keep-selection
         onClick={onCreateCollection}
         onMouseEnter={() => setAddHov(true)}
         onMouseLeave={() => setAddHov(false)}
