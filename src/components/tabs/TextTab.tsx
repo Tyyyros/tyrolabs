@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import type { TextClip, ItemType, Theme } from "../../types";
 import { useTheme } from "../../lib/theme";
-import { C } from "../../lib/colors";
+import { C, hexToRgba } from "../../lib/colors";
+import { Ic } from "../icons";
 import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -15,12 +16,11 @@ interface Props {
   clips: TextClip[];
   onCtx: (a: CtxArgs) => void;
   onDoubleClick: (id: number, type: ItemType) => void;
-  selectedId: number | null;
   selection: Set<number>;
   onSelect: (id: number, e: React.MouseEvent, list: TextClip[]) => void;
 }
 
-export function TextTab({ clips, onCtx, onDoubleClick, selectedId, selection, onSelect }: Props) {
+export function TextTab({ clips, onCtx, onDoubleClick, selection, onSelect }: Props) {
   const theme = useTheme();
   const sorted = useMemo(
     () => [...clips.filter((c) => c.pinned), ...clips.filter((c) => !c.pinned)],
@@ -55,7 +55,7 @@ export function TextTab({ clips, onCtx, onDoubleClick, selectedId, selection, on
             onCtx={onCtx}
             onDoubleClick={onDoubleClick}
             theme={theme}
-            selected={selectedId === c.id || selection.has(c.id)}
+            selected={selection.has(c.id)}
             onSelect={(id, e) => onSelect(id, e, sorted)}
           />
         ))}
@@ -81,14 +81,25 @@ export function TextRow({ clip, onCtx, onDoubleClick, theme, selected, onSelect,
     data: { clipId: clip.id, type: "text" },
   });
 
+  // Bordure gauche réservée au pin ; sélection signifiée par le fond teinté
+  // (theme-aware via hexToRgba). Les deux états sont visuellement distincts
+  // et peuvent coexister.
+  const background = (() => {
+    if (selected && clip.pinned) return hexToRgba(theme.accent, 0.22);
+    if (selected) return hexToRgba(theme.accent, 0.18);
+    if (clip.pinned) return hexToRgba(theme.accent, 0.04);
+    if (hov) return C.rowHov;
+    return index % 2 === 0 ? "rgba(128,128,128,0.04)" : "transparent";
+  })();
+
   const style = {
     height: 34,
     display: "flex",
     alignItems: "center",
     padding: "0 12px 0 6px",
-    background: selected ? "rgba(79, 70, 229, 0.15)" : hov ? C.rowHov : index % 2 === 0 ? "rgba(128,128,128,0.04)" : "transparent",
+    background,
     borderBottom: `1px solid ${C.borderDim}`,
-    borderLeft: clip.pinned ? `4px solid ${theme.accent}` : selected ? `4px solid ${C.accent}` : "4px solid transparent",
+    borderLeft: clip.pinned ? `3px solid ${theme.accent}` : "3px solid transparent",
     cursor: isDragging ? "grabbing" : "default",
     transition: transition || "all 0.1s ease",
     transform: CSS.Translate.toString(transform),
@@ -102,13 +113,14 @@ export function TextRow({ clip, onCtx, onDoubleClick, theme, selected, onSelect,
   return (
     <div
       ref={setNodeRef}
+      data-keep-selection
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       onContextMenu={(e) => {
         e.preventDefault();
         onCtx({ e, item: clip, itemType: "text" });
       }}
-      onMouseDown={(e) => onSelect(clip.id, e)}
+      onClick={(e) => onSelect(clip.id, e)}
       onDoubleClick={() => onDoubleClick(clip.id, "text")}
       style={style}
       {...attributes}
@@ -116,6 +128,13 @@ export function TextRow({ clip, onCtx, onDoubleClick, theme, selected, onSelect,
     >
 
 
+      {clip.pinned && (
+        <Ic.PinFill
+          width={11}
+          height={11}
+          style={{ color: theme.accent, flexShrink: 0, opacity: 0.85 }}
+        />
+      )}
       <span
         style={{
           flex: 1,

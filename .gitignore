@@ -25,3 +25,6 @@ dist-ssr
 
 # Design handoff bundle
 _handoff/
+
+# Local agent workspace
+.claude/

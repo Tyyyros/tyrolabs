@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import type { ImageClip, ItemType, Theme } from "../../types";
 import { useTheme } from "../../lib/theme";
-import { C } from "../../lib/colors";
+import { C, hexToRgba } from "../../lib/colors";
 import { Ic } from "../icons";
 import { SortableContext, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -18,12 +18,11 @@ interface Props {
   onCtx: (a: CtxArgs) => void;
   onDoubleClick: (id: number, type: ItemType) => void;
   gridCols: number;
-  selectedId: number | null;
   selection: Set<number>;
   onSelect: (id: number, e: React.MouseEvent, list: ImageClip[]) => void;
 }
 
-export function ImagesTab({ images, onCtx, onDoubleClick, gridCols, selectedId, selection, onSelect }: Props) {
+export function ImagesTab({ images, onCtx, onDoubleClick, gridCols, selection, onSelect }: Props) {
   const theme = useTheme();
   const sorted = useMemo(
     () => [...images.filter((c) => c.pinned), ...images.filter((c) => !c.pinned)],
@@ -41,9 +40,10 @@ export function ImagesTab({ images, onCtx, onDoubleClick, gridCols, selectedId, 
               key={img.id}
               img={img}
               index={i}
+              sortedImages={sorted}
               onCtx={onCtx}
               onDoubleClick={onDoubleClick}
-              selected={selectedId === img.id || selection.has(img.id)}
+              selected={selection.has(img.id)}
               onSelect={(id, e) => onSelect(id, e, sorted)}
               theme={theme}
             />
@@ -57,6 +57,7 @@ export function ImagesTab({ images, onCtx, onDoubleClick, gridCols, selectedId, 
 function ImgRow({
   img,
   index,
+  sortedImages,
   onCtx,
   onDoubleClick,
   selected,
@@ -65,6 +66,7 @@ function ImgRow({
 }: {
   img: ImageClip;
   index: number;
+  sortedImages: ImageClip[];
   onCtx: (a: CtxArgs) => void;
   onDoubleClick: (id: number, type: ItemType) => void;
   selected: boolean;
@@ -80,7 +82,8 @@ function ImgRow({
   const style = {
     cursor: isDragging ? "grabbing" : "pointer",
     userSelect: "none" as const,
-    outline: selected ? `2px solid ${C.accent}` : "none",
+    outline: img.pinned ? `2px solid ${theme.accent}` : "none",
+    outlineOffset: 1,
     borderRadius: 6,
     transition: transition || "all 0.12s",
     transform: CSS.Translate.toString(transform),
@@ -92,13 +95,14 @@ function ImgRow({
   return (
     <div
       ref={setNodeRef}
+      data-keep-selection
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       onContextMenu={(e) => {
         e.preventDefault();
         onCtx({ e, item: img, itemType: "image" });
       }}
-      onMouseDown={(e) => onSelect(img.id, e, [] /* not used for single row */)}
+      onClick={(e) => onSelect(img.id, e, sortedImages)}
       onDoubleClick={() => onDoubleClick(img.id, "image")}
       style={style}
       {...attributes}
@@ -117,13 +121,25 @@ function ImgRow({
           }`,
           position: "relative",
           overflow: "hidden",
-          transition: "border-color 0.12s",
+          transition: "border-color 0.12s, box-shadow 0.12s",
           background: `linear-gradient(135deg, hsl(${img.hue},18%,6%) 0%, hsl(${img.hue},12%,10%) 100%)`,
+          boxShadow: selected ? `0 0 0 2px ${hexToRgba(theme.accent, img.pinned ? 0.24 : 0.18)}` : "none",
         }}
       >
         <ImgView hash={img.hash} />
+        {selected && (
+          <div
+            aria-hidden
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: hexToRgba(theme.accent, img.pinned ? 0.22 : 0.18),
+              pointerEvents: "none",
+            }}
+          />
+        )}
         {img.pinned && (
-          <div style={{ position: "absolute", top: 4, left: 4, color: C.accent }}>
+          <div style={{ position: "absolute", top: 4, left: 4, color: theme.accent, zIndex: 1 }}>
             <Ic.PinFill width={10} height={10} />
           </div>
         )}
@@ -137,6 +153,7 @@ function ImgRow({
             fontFamily: theme.fontMono,
             opacity: 0.4,
             userSelect: "none",
+            zIndex: 1,
           }}
         >
           #{index + 1}
