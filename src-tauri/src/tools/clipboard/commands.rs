@@ -7,8 +7,25 @@ use crate::error::{ToolError, ToolResult};
 use crate::models::{now_date_time, Clip, Collection};
 use crate::tools::clipboard::state::{ClipboardState, SuppressState};
 use crate::tools::clipboard::storage::{
-    delete_image_file, save_collections, save_history, truncate_history,
+    delete_image_file, save_collections, save_history, truncate_history, CollectionSilo,
 };
+
+/// Helper : prend le verrou du silo demandé sur l'état clipboard.
+fn silo_lock<'a>(
+    state: &'a tauri::State<'_, ClipboardState>,
+    silo: CollectionSilo,
+) -> std::sync::MutexGuard<'a, Vec<Collection>> {
+    match silo {
+        CollectionSilo::Text => state.text_collections.lock().unwrap(),
+        CollectionSilo::Image => state.image_collections.lock().unwrap(),
+        CollectionSilo::Link => state.link_collections.lock().unwrap(),
+    }
+}
+
+fn parse_silo(s: &str) -> ToolResult<CollectionSilo> {
+    CollectionSilo::from_str(s)
+        .ok_or_else(|| ToolError::InvalidInput(format!("silo inconnu : {s}")))
+}
 
 fn resolve_image_path(app: &AppHandle, hash: &str) -> ToolResult<PathBuf> {
     if hash.is_empty()
@@ -159,55 +176,77 @@ pub fn copy_image_to_clipboard(app: AppHandle, hash: String) -> ToolResult<()> {
     Ok(())
 }
 
-// ──── Collections ────────────────────────────────────────────────────
+// ──── Collections (silo-bound) ───────────────────────────────────────
+//
+// Chaque commande prend un paramètre `silo` ("text" | "image" | "link").
+// Une opération sur un silo n'a aucun effet, même invisible, sur les autres.
 
 #[tauri::command]
-pub fn get_collections(state: tauri::State<'_, ClipboardState>) -> Vec<Collection> {
-    state.collections.lock().unwrap().clone()
+pub fn get_collections(
+    state: tauri::State<'_, ClipboardState>,
+    silo: String,
+) -> ToolResult<Vec<Collection>> {
+    let silo = parse_silo(&silo)?;
+    Ok(silo_lock(&state, silo).clone())
 }
 
 #[tauri::command]
 pub fn create_collection(
     app: AppHandle,
     state: tauri::State<'_, ClipboardState>,
+    silo: String,
     name: String,
     icon: String,
     color: String,
-    origin_tab: String,
-) -> Collection {
-    let collection = Collection::new(name, icon, color, origin_tab);
-    let mut collections = state.collections.lock().unwrap();
+) -> ToolResult<Collection> {
+    let silo = parse_silo(&silo)?;
+    let collection = Collection::new(name, icon, color);
+    let mut collections = silo_lock(&state, silo);
     collections.push(collection.clone());
-    save_collections(&app, &collections);
-    collection
+    save_collections(&app, silo, &collections);
+    Ok(collection)
 }
 
 #[tauri::command]
 pub fn update_collection(
     app: AppHandle,
     state: tauri::State<'_, ClipboardState>,
+    silo: String,
     id: String,
     name: String,
     icon: String,
     color: String,
-) {
-    let mut collections = state.collections.lock().unwrap();
+) -> ToolResult<()> {
+    let silo = parse_silo(&silo)?;
+    let mut collections = silo_lock(&state, silo);
     if let Some(c) = collections.iter_mut().find(|c| c.id == id) {
         c.name = name;
         c.icon = icon;
         c.color = color;
     }
-    save_collections(&app, &collections);
+    save_collections(&app, silo, &collections);
+    Ok(())
 }
 
 #[tauri::command]
-pub fn delete_collection(app: AppHandle, state: tauri::State<'_, ClipboardState>, id: String) {
+pub fn delete_collection(
+    app: AppHandle,
+    state: tauri::State<'_, ClipboardState>,
+    silo: String,
+    id: String,
+) -> ToolResult<()> {
+    let silo = parse_silo(&silo)?;
+
+    // 1. Retirer la collection du silo demandé uniquement.
     {
-        let mut collections = state.collections.lock().expect("collections lock poisoned");
+        let mut collections = silo_lock(&state, silo);
         collections.retain(|c| c.id != id);
-        save_collections(&app, &collections);
+        save_collections(&app, silo, &collections);
     }
 
+    // 2. Dégrouper les clips qui pointaient vers cette collection.
+    //    `collection_id` est unique tous silos confondus (timestamp-based),
+    //    donc cibler par id est suffisant et n'affecte aucun clip d'un autre silo.
     let mut history = state.clips.lock().expect("clips lock poisoned");
     for clip in history.iter_mut() {
         if clip.collection_id.as_deref() == Some(&id) {
@@ -216,6 +255,7 @@ pub fn delete_collection(app: AppHandle, state: tauri::State<'_, ClipboardState>
         }
     }
     save_history(&app, &history);
+    Ok(())
 }
 
 #[tauri::command]

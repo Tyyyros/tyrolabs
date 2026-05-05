@@ -20,7 +20,6 @@ const NAV: (NavItem | null)[] = [
   { id: "links", Icon: Ic.Link, label: "Liens" },
   null,
   { id: "favs", Icon: Ic.Star, label: "Favoris" },
-  { id: "colls", Icon: Ic.Layers, label: "Collections" },
 ];
 
 interface SbBtnProps {
@@ -59,12 +58,76 @@ function SbBtn({ Icon, label, active, onClick }: SbBtnProps) {
   );
 }
 
-function CaptureBtn({ onCapture }: { onCapture: () => void }) {
+interface CaptureMenuItemProps {
+  label: string;
+  shortcut?: string;
+  onClick: () => void;
+}
+
+function CaptureMenuItem({ label, shortcut, onClick }: CaptureMenuItemProps) {
+  const [hov, setHov] = useState(false);
+  const theme = useTheme();
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        padding: "7px 10px",
+        fontSize: 12,
+        cursor: "pointer",
+        borderRadius: 5,
+        color: hov ? theme.accent : C.t1,
+        background: hov ? C.rowHov : "transparent",
+        transition: "background 0.12s, color 0.12s",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
+      }}
+    >
+      <span>{label}</span>
+      {shortcut && (
+        <span
+          style={{
+            fontFamily: theme.fontMono,
+            fontSize: 10.5,
+            color: hov ? theme.accent : C.t3,
+            letterSpacing: "0.03em",
+          }}
+        >
+          {shortcut}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function CaptureBtn({ onCapture, pulse }: { onCapture: () => void; pulse: number }) {
   const [hov, setHov] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [pulsing, setPulsing] = useState(false);
   const theme = useTheme();
   const timerRef = useRef<number | null>(null);
+  const pulseTimerRef = useRef<number | null>(null);
+
+  // Visual feedback when an external trigger (e.g. Alt+C) fires the capture.
+  useEffect(() => {
+    if (pulse === 0) return; // initial render — skip
+    setPulsing(true);
+    if (pulseTimerRef.current) window.clearTimeout(pulseTimerRef.current);
+    pulseTimerRef.current = window.setTimeout(() => {
+      setPulsing(false);
+      pulseTimerRef.current = null;
+    }, 450);
+    return () => {
+      if (pulseTimerRef.current) {
+        window.clearTimeout(pulseTimerRef.current);
+        pulseTimerRef.current = null;
+      }
+    };
+  }, [pulse]);
 
   const startCapture = () => {
     onCapture();
@@ -109,20 +172,25 @@ function CaptureBtn({ onCapture }: { onCapture: () => void }) {
     >
       <button
         onClick={() => (countdown === null ? startCapture() : null)}
-        title="Capture d'écran"
+        title="Capture d'écran (Alt+C)"
         style={{
           width: "100%",
           height: 46,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: hov ? `rgba(${theme.accentRGB}, 0.15)` : "transparent",
+          background: pulsing
+            ? `rgba(${theme.accentRGB}, 0.35)`
+            : hov
+              ? `rgba(${theme.accentRGB}, 0.15)`
+              : "transparent",
           border: "none",
           cursor: countdown === null ? "pointer" : "default",
-          color: hov ? theme.accent : `rgba(${theme.accentRGB}, 0.7)`,
-          transition: "all 0.12s",
+          color: pulsing ? theme.accent : hov ? theme.accent : `rgba(${theme.accentRGB}, 0.7)`,
+          transition: "all 0.18s",
           position: "relative",
           flexShrink: 0,
+          boxShadow: pulsing ? `0 0 0 2px ${theme.accent} inset` : "none",
         }}
       >
 
@@ -167,45 +235,26 @@ function CaptureBtn({ onCapture }: { onCapture: () => void }) {
             position: "absolute",
             left: 54,
             bottom: 0,
-            background: "#0F0F12",
+            background: "var(--bg)",
+            color: C.t1,
             border: `1px solid ${C.border}`,
-            borderRadius: 6,
+            borderRadius: 8,
             padding: 4,
             zIndex: 1000,
-            width: 140,
-            boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5)",
+            width: 160,
+            fontFamily: theme.fontUI,
+            boxShadow: `0 12px 28px -8px rgba(0,0,0,0.55), 0 0 0 1px ${theme.accent}10`,
           }}
         >
-          <div
+          <CaptureMenuItem
+            label="Capture normale"
+            shortcut="Alt+C"
             onClick={startCapture}
-            style={{
-              padding: "6px 10px",
-              fontSize: 12,
-              cursor: "pointer",
-              borderRadius: 4,
-              color: C.t1,
-              transition: "background 0.1s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-          >
-            Capture normale
-          </div>
-          <div
+          />
+          <CaptureMenuItem
+            label="Différée (5s)"
             onClick={startDelayed}
-            style={{
-              padding: "6px 10px",
-              fontSize: 12,
-              cursor: "pointer",
-              borderRadius: 4,
-              color: C.t1,
-              transition: "background 0.1s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-          >
-            Différée (5s)
-          </div>
+          />
         </div>
       )}
     </div>
@@ -218,9 +267,10 @@ interface Props {
   onSettings: () => void;
   onSystem: () => void;
   onCapture: () => void;
+  capturePulse: number;
 }
 
-export function Sidebar({ activeTab, onTab, onSettings, onSystem, onCapture }: Props) {
+export function Sidebar({ activeTab, onTab, onSettings, onSystem, onCapture, capturePulse }: Props) {
   return (
     <div
       style={{
@@ -251,7 +301,7 @@ export function Sidebar({ activeTab, onTab, onSettings, onSystem, onCapture }: P
         )}
       </div>
       <div style={{ borderTop: `1px solid ${C.border}`, paddingBottom: 4, paddingTop: 4 }}>
-        <CaptureBtn onCapture={onCapture} />
+        <CaptureBtn onCapture={onCapture} pulse={capturePulse} />
         <SbBtn Icon={Ic.Settings} label="Réglages" onClick={onSettings} />
         <SbBtn Icon={Ic.Cpu} label="Système" onClick={onSystem} />
       </div>

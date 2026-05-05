@@ -1,22 +1,16 @@
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-fn default_origin() -> String {
-    "text".to_string()
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Collection {
     pub id: String,
     pub name: String,
     pub icon: String,
     pub color: String,
-    #[serde(default = "default_origin")]
-    pub origin_tab: String,
 }
 
 impl Collection {
-    pub fn new(name: String, icon: String, color: String, origin_tab: String) -> Self {
+    pub fn new(name: String, icon: String, color: String) -> Self {
         let id = format!(
             "col_{}",
             SystemTime::now()
@@ -29,7 +23,6 @@ impl Collection {
             name,
             icon,
             color,
-            origin_tab,
         }
     }
 }

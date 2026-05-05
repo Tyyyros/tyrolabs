@@ -154,7 +154,10 @@ export function Settings({ onClose, themeName, onThemeChange, autoCap, onAutoCap
               ]}
             />
           </Row>
-          <Row label="Capture auto">
+          <Row
+            label="Mode automatique"
+            description="Surveille votre presse-papier et enregistre automatiquement chaque copie."
+          >
             <Toggle value={autoCap} onChange={onAutoCapChange} />
           </Row>
           <AutostartToggle />
@@ -201,19 +204,41 @@ export function Settings({ onClose, themeName, onThemeChange, autoCap, onAutoCap
   );
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({
+  label,
+  description,
+  children,
+}: {
+  label: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div
       style={{
         display: "flex",
-        alignItems: "center",
+        alignItems: description ? "flex-start" : "center",
         justifyContent: "space-between",
+        gap: 16,
         padding: "11px 0",
         borderBottom: `1px solid ${C.borderDim}`,
       }}
     >
-      <span style={{ fontSize: 13 }}>{label}</span>
-      {children}
+      <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0, flex: 1 }}>
+        <span style={{ fontSize: 13 }}>{label}</span>
+        {description && (
+          <span
+            style={{
+              fontSize: 11,
+              color: C.t3,
+              lineHeight: "15px",
+            }}
+          >
+            {description}
+          </span>
+        )}
+      </div>
+      <div style={{ flexShrink: 0, paddingTop: description ? 1 : 0 }}>{children}</div>
     </div>
   );
 }

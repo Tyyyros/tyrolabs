@@ -18,10 +18,11 @@ import { Toast } from "./components/ui/Toast";
 import { CreateCollectionModal } from "./components/groups/CreateCollectionModal";
 import { EditorPanel } from "./components/overlays/EditorPanel";
 import { useClipboardStore } from "./lib/clipboard-store";
-import { type TabId, type ItemType, type ThemeId, type AnyClip, type TextClip, type ImageClip } from "./types";
+import { type TabId, type ItemType, type ThemeId, type AnyClip, type TextClip, type ImageClip, type CollectionSilo, type Collection } from "./types";
 import { DndContext, pointerWithin, PointerSensor, useSensor, useSensors, DragOverlay, type DragStartEvent, type DragEndEvent } from "@dnd-kit/core";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
 
 const TOAST_MS = 2400;
 
@@ -52,11 +53,14 @@ export default function App() {
   const [editingItem, setEditingItem] = useState<{ item: AnyClip; type: ItemType } | null>(null);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
+  const [capturePulse, setCapturePulse] = useState(0);
 
   const {
     textClips,
     imageClips,
-    collections,
+    textCollections,
+    imageCollections,
+    linkCollections,
     copyAndPromoteClip,
     togglePinned,
     deleteClips,
@@ -67,6 +71,29 @@ export default function App() {
     setClipsCollection,
     openClip,
   } = useClipboardStore();
+
+  // Le silo actif découle directement de l'onglet. Favs n'a pas de silo (vue
+  // cross-silo) → la CollectionBar est masquée et activeCollections == [].
+  const activeSilo: CollectionSilo | null =
+    activeTab === "text" ? "text"
+    : activeTab === "images" ? "image"
+    : activeTab === "links" ? "link"
+    : null;
+
+  const activeCollections: Collection[] =
+    activeSilo === "text" ? textCollections
+    : activeSilo === "image" ? imageCollections
+    : activeSilo === "link" ? linkCollections
+    : [];
+
+  // Sur changement d'onglet : retour à la vue "Home" (pas de collection
+  // sélectionnée) et reset de la sélection multiple, pour ne JAMAIS afficher
+  // les éléments d'une collection d'un autre silo.
+  useEffect(() => {
+    setActiveCollectionId(null);
+    setSelection(new Set());
+    setSelectedId(null);
+  }, [activeTab]);
 
   const theme = THEMES[themeName];
   const fire = (msg: string) => {
@@ -157,16 +184,15 @@ export default function App() {
   const autoLinks = useMemo(() => baseText.filter(c => isLinkOrPath(c.text)), [baseText]);
   const filteredLinks = useMemo(() => filterByQuery(autoLinks) as TextClip[], [autoLinks, q]);
   const activeCollectionName = useMemo(
-    () => collections.find((collection) => collection.id === activeCollectionId)?.name ?? null,
-    [collections, activeCollectionId],
+    () => activeCollections.find((collection) => collection.id === activeCollectionId)?.name ?? null,
+    [activeCollections, activeCollectionId],
   );
   const statusCount = useMemo(() => {
     if (activeTab === "images") return filteredImages.length;
     if (activeTab === "links") return filteredLinks.length;
     if (activeTab === "favs") return textClips.filter(c => c.pinned).length + imageClips.filter(c => c.pinned).length;
-    if (activeTab === "colls") return collections.length;
     return filteredText.length;
-  }, [activeTab, filteredImages.length, filteredLinks.length, filteredText.length, textClips, imageClips, collections.length]);
+  }, [activeTab, filteredImages.length, filteredLinks.length, filteredText.length, textClips, imageClips]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -251,6 +277,28 @@ export default function App() {
     });
   };
 
+  // Global shortcut Alt+C → capture instantanée (équivalent au clic Sidebar).
+  useEffect(() => {
+    const SHORTCUT = "Alt+C";
+    let registered = false;
+    register(SHORTCUT, (event) => {
+      if (event.state === "Pressed") {
+        handleCapture();
+        setCapturePulse((n) => n + 1);
+      }
+    })
+      .then(() => { registered = true; })
+      .catch((e) => console.error("[global-shortcut] register failed:", e));
+
+    return () => {
+      if (registered) {
+        unregister(SHORTCUT).catch((e) =>
+          console.error("[global-shortcut] unregister failed:", e),
+        );
+      }
+    };
+  }, []);
+
   const handleDoubleClick = (id: number, type: ItemType) => {
     copyAndPromoteClip(id, type).then(() => {
       fire(type === "image" ? "Image copiée ✓" : "Copié ✓");
@@ -297,21 +345,27 @@ export default function App() {
             onSettings={() => setSettOpen(true)}
             onSystem={() => setSysOpen(true)}
             onCapture={handleCapture}
+            capturePulse={capturePulse}
           />
           <main style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column", minWidth: 0, background: "var(--bg)" }}>
             <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-              <CollectionBar
-                collections={collections}
-                activeCollectionId={activeCollectionId}
-                onSelectCollection={setActiveCollectionId}
-                onCreateCollection={() => setCreateCollectionOpen(true)}
-                onDeleteCollection={(id) => {
-                  deleteCollection(id);
-                  if (activeCollectionId === id) setActiveCollectionId(null);
-                }}
-                onRenameCollection={(id, name) => updateCollection(id, name, "", "")}
-                collectionClipCounts={collectionCounts}
-              />
+              {activeSilo && (
+                <CollectionBar
+                  collections={activeCollections}
+                  activeCollectionId={activeCollectionId}
+                  onSelectCollection={setActiveCollectionId}
+                  onCreateCollection={() => setCreateCollectionOpen(true)}
+                  onDeleteCollection={(id) => {
+                    deleteCollection(activeSilo, id);
+                    if (activeCollectionId === id) setActiveCollectionId(null);
+                  }}
+                  onRenameCollection={(id, name) => {
+                    const current = activeCollections.find((c) => c.id === id);
+                    if (current) updateCollection(activeSilo, id, name, current.icon, current.color);
+                  }}
+                  collectionClipCounts={collectionCounts}
+                />
+              )}
               <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                 {activeTab === "text" && <TextTab clips={filteredText} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selectedId={selectedId} selection={selection} onSelect={handleSelect} />}
                 {activeTab === "images" && <ImagesTab images={filteredImages} gridCols={3} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selectedId={selectedId} selection={selection} onSelect={handleSelect} />}
@@ -354,7 +408,14 @@ export default function App() {
         {ctx && <CtxMenu x={ctx.x} y={ctx.y} item={ctx.item} itemType={ctx.itemType} handlers={getHandlers(ctx.item, ctx.itemType)} />}
         {sysOpen && <SysDrawer onClose={() => setSysOpen(false)} />}
         {settOpen && <Settings onClose={() => setSettOpen(false)} themeName={themeName} onThemeChange={setThemeName} autoCap={autoCap} onAutoCapChange={setAutoCap} />}
-        <CreateCollectionModal open={createCollectionOpen} onClose={() => setCreateCollectionOpen(false)} onCreate={(name, icon, color) => createCollection(name, icon, color, activeTab)} />
+        <CreateCollectionModal
+          open={createCollectionOpen && activeSilo !== null}
+          silo={activeSilo}
+          onClose={() => setCreateCollectionOpen(false)}
+          onCreate={(name, icon, color) => {
+            if (activeSilo) createCollection(activeSilo, name, icon, color);
+          }}
+        />
         {toast && <Toast msg={toast} />}
       </div>
     </ThemeProvider>

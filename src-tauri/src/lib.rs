@@ -10,7 +10,7 @@ use tauri_plugin_autostart::ManagerExt;
 use crate::services::system;
 use crate::services::tray;
 use crate::tools::capture::{self, CaptureState};
-use crate::tools::clipboard::storage::{load_collections, load_history};
+use crate::tools::clipboard::storage::{load_collections, load_history, CollectionSilo};
 use crate::tools::clipboard::{self, ClipboardState, SuppressState};
 
 const AUTOSTART_ARG: &str = "--autostart";
@@ -32,6 +32,7 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(SuppressState(Arc::clone(&suppress)))
         .invoke_handler(tauri::generate_handler![
             // services/system : primitives OS partagées
@@ -68,10 +69,14 @@ pub fn run() {
         .setup(move |app| {
             // Load initial data into memory
             let history = load_history(app.handle());
-            let collections = load_collections(app.handle());
+            let text_collections = load_collections(app.handle(), CollectionSilo::Text);
+            let image_collections = load_collections(app.handle(), CollectionSilo::Image);
+            let link_collections = load_collections(app.handle(), CollectionSilo::Link);
             app.manage(ClipboardState {
                 clips: Mutex::new(history),
-                collections: Mutex::new(collections),
+                text_collections: Mutex::new(text_collections),
+                image_collections: Mutex::new(image_collections),
+                link_collections: Mutex::new(link_collections),
             });
             app.manage(CaptureState::default());
 

@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
-import type { AnyClip, ImageClip, ItemType, TextClip, Collection } from "../types";
+import type {
+  AnyClip,
+  CollectionSilo,
+  ImageClip,
+  ItemType,
+  TextClip,
+  Collection,
+} from "../types";
 import { isImageClip } from "../types";
 
 function isTextualItemType(itemType: ItemType): itemType is Exclude<ItemType, "image"> {
@@ -33,7 +40,9 @@ function liftToHead<T extends { id: number }>(items: T[], id: number): T[] {
 export function useClipboardStore() {
   const [textClips, setTextClips] = useState<TextClip[]>([]);
   const [imageClips, setImageClips] = useState<ImageClip[]>([]);
-  const [collections, setCollections] = useState<Collection[]>([]);
+  const [textCollections, setTextCollections] = useState<Collection[]>([]);
+  const [imageCollections, setImageCollections] = useState<Collection[]>([]);
+  const [linkCollections, setLinkCollections] = useState<Collection[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,11 +55,19 @@ export function useClipboardStore() {
       })
       .catch((e) => console.error("[get_history] failed:", e));
 
-    invoke<Collection[]>("get_collections")
-      .then((g) => {
-        if (!cancelled) setCollections(g);
-      })
-      .catch((e) => console.error("[get_collections] failed:", e));
+    // Charger les trois silos en parallèle.
+    const setters: Record<CollectionSilo, (items: Collection[]) => void> = {
+      text: setTextCollections,
+      image: setImageCollections,
+      link: setLinkCollections,
+    };
+    (Object.keys(setters) as CollectionSilo[]).forEach((silo) => {
+      invoke<Collection[]>("get_collections", { silo })
+        .then((items) => {
+          if (!cancelled) setters[silo](items);
+        })
+        .catch((e) => console.error(`[get_collections:${silo}] failed:`, e));
+    });
 
     let unlisten: (() => void) | undefined;
     listen<AnyClip>("clipboard://new-item", (event) => {
@@ -175,24 +192,61 @@ export function useClipboardStore() {
     [],
   );
 
-  const createCollection = useCallback(async (name: string, icon: string, color: string, origin_tab: string) => {
-    const collection = await invoke<Collection>("create_collection", { name, icon, color, originTab: origin_tab });
-    setCollections((prev) => [...prev, collection]);
-    return collection;
-  }, []);
+  // ── Helpers silo-aware ─────────────────────────────────────────
+  const setterFor = useCallback(
+    (silo: CollectionSilo): Dispatch<SetStateAction<Collection[]>> => {
+      switch (silo) {
+        case "text":
+          return setTextCollections;
+        case "image":
+          return setImageCollections;
+        case "link":
+          return setLinkCollections;
+      }
+    },
+    [],
+  );
 
-  const updateCollection = useCallback(async (id: string, name: string, icon: string, color: string) => {
-    await invoke("update_collection", { id, name, icon, color });
-    setCollections((prev) => prev.map((g) => (g.id === id ? { ...g, name, icon, color } : g)));
-  }, []);
+  const createCollection = useCallback(
+    async (silo: CollectionSilo, name: string, icon: string, color: string) => {
+      const collection = await invoke<Collection>("create_collection", {
+        silo,
+        name,
+        icon,
+        color,
+      });
+      setterFor(silo)((prev) => [...prev, collection]);
+      return collection;
+    },
+    [setterFor],
+  );
 
-  const deleteCollection = useCallback(async (id: string) => {
-    await invoke("delete_collection", { id });
-    setCollections((prev) => prev.filter((g) => g.id !== id));
-    // Ungroup clips locally
-    setTextClips((prev) => prev.map((c) => (c.collection_id === id ? { ...c, collection_id: null, sort_order: 0 } : c)));
-    setImageClips((prev) => prev.map((c) => (c.collection_id === id ? { ...c, collection_id: null, sort_order: 0 } : c)));
-  }, []);
+  const updateCollection = useCallback(
+    async (silo: CollectionSilo, id: string, name: string, icon: string, color: string) => {
+      await invoke("update_collection", { silo, id, name, icon, color });
+      setterFor(silo)((prev) =>
+        prev.map((g) => (g.id === id ? { ...g, name, icon, color } : g)),
+      );
+    },
+    [setterFor],
+  );
+
+  const deleteCollection = useCallback(
+    async (silo: CollectionSilo, id: string) => {
+      await invoke("delete_collection", { silo, id });
+      setterFor(silo)((prev) => prev.filter((g) => g.id !== id));
+      // Dégroupage local : un seul clip à la fois est dans une collection
+      // (collection_id pointe vers un id global unique), donc on sweep les deux
+      // listes de clips. Aucun effet sur les collections d'un autre silo.
+      setTextClips((prev) =>
+        prev.map((c) => (c.collection_id === id ? { ...c, collection_id: null, sort_order: 0 } : c)),
+      );
+      setImageClips((prev) =>
+        prev.map((c) => (c.collection_id === id ? { ...c, collection_id: null, sort_order: 0 } : c)),
+      );
+    },
+    [setterFor],
+  );
 
   const setClipsCollection = useCallback(async (clipIds: number[], collectionId: string) => {
     await invoke("set_clips_collection", { clipIds, collectionId });
@@ -219,7 +273,9 @@ export function useClipboardStore() {
   return {
     textClips,
     imageClips,
-    collections,
+    textCollections,
+    imageCollections,
+    linkCollections,
     copyAndPromoteClip,
     togglePinned,
     deleteClips,

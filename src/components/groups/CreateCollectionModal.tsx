@@ -2,6 +2,13 @@ import { useEffect, useState } from "react";
 import { C } from "../../lib/colors";
 import { useTheme } from "../../lib/theme";
 import { Ic } from "../icons";
+import type { CollectionSilo } from "../../types";
+
+const SILO_LABEL: Record<CollectionSilo, string> = {
+  text: "Texte",
+  image: "Images",
+  link: "Liens",
+};
 
 const PRESET_COLORS = [
   "#3B82F6", "#22C55E", "#F59E0B", "#EF4444",
@@ -15,10 +22,12 @@ const PRESET_ICONS = [
 
 export function CreateCollectionModal({
   open,
+  silo,
   onClose,
   onCreate,
 }: {
   open: boolean;
+  silo: CollectionSilo | null;
   onClose: () => void;
   onCreate: (name: string, icon: string, color: string) => void;
 }) {
@@ -87,7 +96,23 @@ export function CreateCollectionModal({
               justifyContent: "space-between",
             }}
           >
-            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: C.t1 }}>Nouvelle collection</h2>
+            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: C.t1 }}>
+              Nouvelle collection
+              {silo && (
+                <span
+                  style={{
+                    marginLeft: 8,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: C.t3,
+                    fontFamily: theme.fontMono,
+                    letterSpacing: "0.02em",
+                  }}
+                >
+                  — {SILO_LABEL[silo]}
+                </span>
+              )}
+            </h2>
             <button
               onClick={onClose}
               style={{

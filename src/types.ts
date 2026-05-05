@@ -1,7 +1,12 @@
 export type ItemType = "text" | "image" | "link";
 export type TextClipType = "text" | "code" | "link";
 
-export type TabId = "text" | "images" | "links" | "favs" | "colls";
+export type TabId = "text" | "images" | "links" | "favs";
+
+/** Silo de collections : trois entités totalement cloisonnées (text / image / link).
+ *  Chaque silo possède son propre stockage, ses propres IDs, et ses propres
+ *  opérations CRUD. Une action sur un silo n'a aucun effet sur les autres. */
+export type CollectionSilo = "text" | "image" | "link";
 
 interface BaseClip {
   id: number;
@@ -19,7 +24,6 @@ export interface Collection {
   name: string;
   icon: string;
   color: string;
-  origin_tab: string;
 }
 
 export interface TextClip {
