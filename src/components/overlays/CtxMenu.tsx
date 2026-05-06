@@ -87,13 +87,15 @@ export function CtxMenu({ x, y, item, itemType, handlers }: Props) {
         position: "fixed",
         left: ax,
         top: ay,
-        background: "#0c0c0e", // Slightly darker background
-        border: `1px solid ${C.border}`,
+        background: theme.light ? "#FFFFFF" : "#262626",
+        border: theme.light ? "1px solid #E5E7EB" : `1px solid ${C.border}`,
         borderRadius: 10,
         overflow: "hidden",
         zIndex: 500,
         minWidth: 230,
-        boxShadow: "0 25px 60px -12px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.03)", // Stronger shadow
+        boxShadow: theme.light
+          ? "0 12px 32px -8px rgba(15,23,42,0.18), 0 0 0 1px rgba(15,23,42,0.04)"
+          : "0 25px 60px -12px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.03)",
         padding: "5px 0",
       }}
     >
