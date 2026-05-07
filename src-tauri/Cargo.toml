@@ -1,6 +1,6 @@
 [package]
 name = "tyrolabs-toolbox"
-version = "0.1.6"
+version = "0.1.7"
 description = "TyroLabs V2 — clipboard manager"
 authors = ["Tyyyros"]
 edition = "2021"
