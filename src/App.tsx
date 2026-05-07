@@ -1,30 +1,35 @@
-import { useState, useMemo, useEffect } from "react";
-import React from "react";
-import { ThemeProvider } from "./lib/theme";
-import { THEMES } from "./themes";
-import { C, hexToRgba } from "./lib/colors";
+import { useCallback, useEffect, useState } from "react";
+import type { MouseEvent } from "react";
+import { DndContext, DragOverlay, PointerSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
+import type { DragEndEvent, DragStartEvent, Modifier } from "@dnd-kit/core";
+import { invoke } from "@tauri-apps/api/core";
+
 import { Ic } from "./components/icons";
-import { TitleBar } from "./components/layout/TitleBar";
+import { CollectionBar } from "./components/groups/CollectionBar";
+import { CreateCollectionModal } from "./components/groups/CreateCollectionModal";
 import { Sidebar } from "./components/layout/Sidebar";
 import { StatusBar } from "./components/layout/StatusBar";
-import { CollectionBar } from "./components/groups/CollectionBar";
-import { TextTab } from "./components/tabs/TextTab";
+import { TitleBar } from "./components/layout/TitleBar";
+import { CtxMenu, type CtxHandlers } from "./components/overlays/CtxMenu";
+import { EditorPanel } from "./components/overlays/EditorPanel";
+import { Settings } from "./components/overlays/Settings";
+import { SysDrawer } from "./components/overlays/SysDrawer";
 import { ImagesTab } from "./components/tabs/ImagesTab";
 import { LinksTab } from "./components/tabs/LinksTab";
-import { CtxMenu, type CtxHandlers } from "./components/overlays/CtxMenu";
-import { SysDrawer } from "./components/overlays/SysDrawer";
-import { Settings } from "./components/overlays/Settings";
+import { TextTab } from "./components/tabs/TextTab";
+import { NotesPanel } from "./components/tools/notes/NotesPanel";
 import { Toast } from "./components/ui/Toast";
-import { CreateCollectionModal } from "./components/groups/CreateCollectionModal";
-import { EditorPanel } from "./components/overlays/EditorPanel";
+import { useAppShellEvents, useCaptureShortcut, useTauriAppEvents } from "./hooks/useAppEvents";
+import { useClipboardSelection } from "./hooks/useClipboardSelection";
+import { useClipboardShortcuts } from "./hooks/useClipboardShortcuts";
+import { useClipboardViews } from "./hooks/useClipboardViews";
+import { useNotesStore } from "./hooks/useNotesStore";
+import { useToast } from "./hooks/useToast";
+import { hexToRgba, C } from "./lib/colors";
 import { useClipboardStore } from "./lib/clipboard-store";
-import { type TabId, type ItemType, type ThemeId, type AnyClip, type TextClip, type ImageClip, type CollectionSilo, type Collection } from "./types";
-import { DndContext, pointerWithin, PointerSensor, useSensor, useSensors, DragOverlay, type DragStartEvent, type DragEndEvent, type Modifier } from "@dnd-kit/core";
-import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
-import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
-
-const TOAST_MS = 2400;
+import { ThemeProvider } from "./lib/theme";
+import { THEMES } from "./themes";
+import type { AnyClip, ClipboardSettings, ItemType, TabId, TextClip, ThemeId } from "./types";
 
 function getEventClientPoint(event: Event | null) {
   if (event instanceof MouseEvent || event instanceof PointerEvent) {
@@ -57,17 +62,6 @@ const snapOverlayToCursor: Modifier = ({
   };
 };
 
-export function isLinkOrPath(text: string) {
-  const t = text.trim();
-  if (t.startsWith("http://") || t.startsWith("https://")) return true;
-  if (/^[a-zA-Z]:\\/.test(t) || t.startsWith("\\\\")) return true;
-  if (t.includes(".") && !t.includes(" ") && t.length > 4) {
-     const ext = t.split(".").pop()?.toLowerCase();
-     if (ext && ext.length >= 2 && ext.length <= 4) return true;
-  }
-  return false;
-}
-
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>("text");
   const [search, setSearch] = useState("");
@@ -75,319 +69,265 @@ export default function App() {
   const [themeName, setThemeName] = useState<ThemeId>("command");
   const [sysOpen, setSysOpen] = useState(false);
   const [settOpen, setSettOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [selection, setSelection] = useState<Set<number>>(new Set());
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null);
   const [createCollectionOpen, setCreateCollectionOpen] = useState(false);
-  const [autoCap, setAutoCap] = useState(true);
-  const [activeDragItem, setActiveDragItem] = useState<{ id: number; type: ItemType } | null>(null);
+  type DragItem = { id: number | string; type: ItemType | "note" };
+  const [activeDragItem, setActiveDragItem] = useState<DragItem | null>(null);
   const [editingItem, setEditingItem] = useState<{ item: AnyClip; type: ItemType } | null>(null);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
-  const [toast, setToast] = useState<string | null>(null);
-  const [capturePulse, setCapturePulse] = useState(0);
 
+  const theme = THEMES[themeName];
+  const { toast, fire } = useToast();
+  const {
+    selection,
+    clearSelection,
+    selectOnly,
+    handleSelect,
+  } = useClipboardSelection();
+  const store = useClipboardStore();
+  const notesStore = useNotesStore();
   const {
     textClips,
     imageClips,
+    clipboardSettings,
     textCollections,
     imageCollections,
     linkCollections,
+    copyPlainText,
+    copyMergedClips,
     copyAndPromoteClip,
     togglePinned,
     deleteClips,
     updateTextClip,
+    updateClipboardSettings,
     createCollection,
     updateCollection,
     deleteCollection,
     setClipsCollection,
     openClip,
-  } = useClipboardStore();
+  } = store;
 
-  // Le silo actif découle directement de l'onglet. Favs n'a pas de silo (vue
-  // cross-silo) → la CollectionBar est masquée et activeCollections == [].
-  const activeSilo: CollectionSilo | null =
-    activeTab === "text" ? "text"
-    : activeTab === "images" ? "image"
-    : activeTab === "links" ? "link"
-    : null;
+  const views = useClipboardViews({
+    activeTab,
+    activeCollectionId,
+    search,
+    textClips,
+    imageClips,
+    textCollections,
+    imageCollections,
+    linkCollections,
+  });
+  const {
+    activeSilo,
+    activeCollections,
+    collectionCounts,
+    filteredText,
+    filteredImages,
+    filteredLinks,
+    pinnedText,
+    pinnedImages,
+    activeCollectionName,
+    statusCount,
+  } = views;
 
-  const activeCollections: Collection[] =
-    activeSilo === "text" ? textCollections
-    : activeSilo === "image" ? imageCollections
-    : activeSilo === "link" ? linkCollections
-    : [];
-
-  // Sur changement d'onglet : retour à la vue "Home" (pas de collection
-  // sélectionnée) et reset de la sélection multiple, pour ne JAMAIS afficher
-  // les éléments d'une collection d'un autre silo.
   useEffect(() => {
     setActiveCollectionId(null);
-    setSelection(new Set());
-    setSelectedId(null);
-  }, [activeTab]);
+    clearSelection();
+  }, [activeTab, clearSelection]);
 
-  const theme = THEMES[themeName];
-  const fire = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), TOAST_MS);
-  };
+  const dismissMenus = useCallback(() => {
+    setCtx(null);
+    clearSelection();
+  }, [clearSelection]);
 
+  const dismissAll = useCallback(() => {
+    dismissMenus();
+    setEditingItem(null);
+  }, [dismissMenus]);
+
+  useAppShellEvents({ onDismiss: dismissMenus, onEscape: dismissAll });
+
+  // Ferme le menu contextuel au mousedown en dehors du menu.
+  // dnd-kit appelle preventDefault() sur pointerdown des lignes triables,
+  // ce qui supprime l'événement click — donc le handler click global ne
+  // se déclenche pas de façon fiable. mousedown n'est pas affecté.
   useEffect(() => {
-    const onDocClick = (e: MouseEvent) => {
+    if (!ctx) return;
+    const closeOnOutside = (event: globalThis.MouseEvent) => {
+      const target = event.target as Element | null;
+      if (target && target.closest("[data-ctx-menu]")) return;
       setCtx(null);
-      // Vide la sélection si le clic n'est pas dans une zone qui doit la
-      // préserver (rows, CollectionBar, modals, etc. — taggés avec
-      // data-keep-selection).
-      const target = e.target as Element | null;
-      if (!target || !target.closest("[data-keep-selection]")) {
-        setSelection(new Set());
-        setSelectedId(null);
-      }
     };
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setSelection(new Set());
-        setSelectedId(null);
-        setCtx(null);
-        setEditingItem(null);
-      }
-    };
-    document.addEventListener("click", onDocClick);
-    document.addEventListener("keydown", handleEsc);
-    return () => {
-      document.removeEventListener("click", onDocClick);
-      document.removeEventListener("keydown", handleEsc);
-    };
-  }, []);
+    document.addEventListener("mousedown", closeOnOutside);
+    return () => document.removeEventListener("mousedown", closeOnOutside);
+  }, [ctx]);
 
-  useEffect(() => {
-    const unlisten = listen("open-settings", () => setSettOpen(true));
-    return () => { unlisten.then(f => f()); };
-  }, []);
+  useTauriAppEvents({
+    onOpenSettings: useCallback(() => setSettOpen(true), []),
+    onCaptureDone: useCallback(() => setActiveTab("images"), []),
+  });
 
-  useEffect(() => {
-    const unlisten = listen("capture://done", () => setActiveTab("images"));
-    return () => { unlisten.then(f => f()); };
-  }, []);
-
-  /**
-   * Sélection / désélection d'un clip au clic.
-   *
-   * Sémantique :
-   * - plain click sur item non sélectionné         → selection = {id}, anchor = id
-   * - plain click sur item seul sélectionné        → selection = ∅,    anchor = null
-   * - plain click sur item dans multi-sélection    → selection = {id}, anchor = id  (réduit)
-   * - Ctrl+click                                   → toggle id ; anchor = id si ajout
-   * - Shift+click avec anchor                      → range [anchor..id] (remplace, pas d'union)
-   * - Shift+click sans anchor                      → traité comme plain click
-   */
-  const handleSelect = (id: number, e: React.MouseEvent, list: AnyClip[]) => {
-    const isMulti = e.ctrlKey || e.metaKey;
-    const isShift = e.shiftKey;
-
-    if (isShift && selectedId !== null) {
-      const idxA = list.findIndex((c) => c.id === selectedId);
-      const idxB = list.findIndex((c) => c.id === id);
-      if (idxA !== -1 && idxB !== -1) {
-        const start = Math.min(idxA, idxB);
-        const end = Math.max(idxA, idxB);
-        const range = list.slice(start, end + 1).map((c) => c.id);
-        setSelection(new Set(range));
-      }
-      // anchor reste sur selectedId pour permettre l'extension successive
-      return;
-    }
-
-    if (isMulti) {
-      setSelection((prev) => {
-        const next = new Set(prev);
-        if (next.has(id)) {
-          next.delete(id);
-          if (selectedId === id) {
-            const fallbackId = list.find((item) => next.has(item.id))?.id ?? null;
-            setSelectedId(fallbackId);
-          }
-        } else {
-          next.add(id);
-          setSelectedId(id);
-        }
-        return next;
-      });
-      return;
-    }
-
-    // Plain click
-    const isSoloSelected = selection.size === 1 && selection.has(id);
-    if (isSoloSelected) {
-      setSelection(new Set());
-      setSelectedId(null);
-    } else {
-      setSelection(new Set([id]));
-      setSelectedId(id);
-    }
-  };
-
-  const collectionCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    const countClips = (c: AnyClip) => {
-      if (c.collection_id) counts[c.collection_id] = (counts[c.collection_id] || 0) + 1;
-    };
-    textClips.forEach(countClips);
-    imageClips.forEach(countClips);
-    return counts;
-  }, [textClips, imageClips]);
-
-  const baseText = useMemo(() => activeCollectionId ? textClips.filter(c => c.collection_id === activeCollectionId).sort((a,b) => (a.sort_order || 0) - (b.sort_order || 0)) : textClips.filter(c => !c.collection_id), [textClips, activeCollectionId]);
-  const baseImages = useMemo(() => activeCollectionId ? imageClips.filter(c => c.collection_id === activeCollectionId).sort((a,b) => (a.sort_order || 0) - (b.sort_order || 0)) : imageClips.filter(c => !c.collection_id), [imageClips, activeCollectionId]);
-
-  const q = search.toLowerCase();
-  const filterByQuery = (clips: AnyClip[]) => {
-    if (!search) return clips;
-    return clips.filter(c => {
-      if (c.type !== "image") return c.text.toLowerCase().includes(q);
-      return ("hash" in c) && c.hash.toLowerCase().includes(q);
+  const handleCapture = useCallback(() => {
+    invoke("prepare_capture").catch((error) => {
+      console.error(error);
+      fire("Erreur lors de la préparation de la capture");
     });
-  };
-
-  const filteredText = useMemo(() => filterByQuery(baseText) as TextClip[], [q, baseText]);
-  const filteredImages = useMemo(() => filterByQuery(baseImages) as ImageClip[], [baseImages, q]);
-  const autoLinks = useMemo(() => baseText.filter(c => isLinkOrPath(c.text)), [baseText]);
-  const filteredLinks = useMemo(() => filterByQuery(autoLinks) as TextClip[], [autoLinks, q]);
-  const activeCollectionName = useMemo(
-    () => activeCollections.find((collection) => collection.id === activeCollectionId)?.name ?? null,
-    [activeCollections, activeCollectionId],
-  );
-  const statusCount = useMemo(() => {
-    if (activeTab === "images") return filteredImages.length;
-    if (activeTab === "links") return filteredLinks.length;
-    if (activeTab === "favs") return textClips.filter(c => c.pinned).length + imageClips.filter(c => c.pinned).length;
-    return filteredText.length;
-  }, [activeTab, filteredImages.length, filteredLinks.length, filteredText.length, textClips, imageClips]);
+  }, [fire]);
+  const capturePulse = useCaptureShortcut(handleCapture);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
-  const handleDragStart = (e: DragStartEvent) => {
-    const clipId = e.active.data.current?.clipId;
-    const type = e.active.data.current?.type;
-    if (!clipId || !type) return;
+  const selectedTextItems = useCallback(() => {
+    const source = activeTab === "links"
+      ? filteredLinks
+      : activeTab === "favs"
+        ? pinnedText
+        : filteredText;
+    return source.filter((clip) => selection.has(clip.id));
+  }, [activeTab, filteredLinks, filteredText, pinnedText, selection]);
+
+  const selectedImageItems = useCallback(() => {
+    const source = activeTab === "images"
+      ? filteredImages
+      : activeTab === "favs"
+        ? pinnedImages
+        : [];
+    return source.filter((clip) => selection.has(clip.id));
+  }, [activeTab, filteredImages, pinnedImages, selection]);
+
+  const handleBatchDelete = useCallback(() => {
+    const selectedText = selectedTextItems();
+    const selectedImages = selectedImageItems();
+    const textType: ItemType = activeTab === "links" ? "link" : "text";
+    const total = selectedText.length + selectedImages.length;
+    if (total === 0) return;
+
+    Promise.all([
+      selectedText.length ? deleteClips(selectedText.map((clip) => clip.id), textType) : Promise.resolve(),
+      selectedImages.length ? deleteClips(selectedImages.map((clip) => clip.id), "image") : Promise.resolve(),
+    ])
+      .then(() => {
+        clearSelection();
+        fire(`${total} élément${total > 1 ? "s" : ""} supprimé${total > 1 ? "s" : ""} ✓`);
+      })
+      .catch((error) => {
+        console.error("[delete_clips] failed:", error);
+        fire("Erreur lors de la suppression");
+      });
+  }, [activeTab, clearSelection, deleteClips, fire, selectedImageItems, selectedTextItems]);
+
+  const handleBatchCopy = useCallback(() => {
+    const selectedText = selectedTextItems();
+    const selectedImages = selectedImageItems();
+    const hasText = selectedText.length > 0;
+    const hasImages = selectedImages.length > 0;
+    if (!hasText && !hasImages) return;
+
+    if (hasImages && !hasText) {
+      copyMergedClips(selectedImages, "image")
+        .then((copied) => {
+          if (copied) fire(selectedImages.length > 1 ? "1ère image copiée (sélection multiple)" : "Image copiée ✓");
+        })
+        .catch((error) => {
+          console.error("[copy_image] failed:", error);
+          fire("Erreur lors de la copie");
+        });
+      return;
+    }
+
+    const textType: ItemType = activeTab === "links" ? "link" : "text";
+    copyMergedClips(selectedText, textType)
+      .then((copied) => {
+        if (copied) fire(`${selectedText.length} élément${selectedText.length > 1 ? "s" : ""} fusionné${selectedText.length > 1 ? "s" : ""} ✓`);
+      })
+      .catch((error) => {
+        console.error("[copy_text] failed:", error);
+        fire("Erreur lors de la copie");
+      });
+  }, [activeTab, copyMergedClips, fire, selectedImageItems, selectedTextItems]);
+
+  useClipboardShortcuts({
+    selectedCount: selection.size,
+    onDelete: handleBatchDelete,
+    onCopy: handleBatchCopy,
+  });
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const data = event.active.data.current;
+    if (!data) return;
+
+    if (data.type === "note" && typeof data.noteId === "string") {
+      setActiveDragItem({ id: data.noteId, type: "note" });
+      return;
+    }
+
+    const clipId = data.clipId;
+    const type = data.type;
+    if (typeof clipId !== "number" || !type) return;
     setActiveDragItem({ id: clipId, type });
-    // Si on drague un item hors de la sélection courante, on bascule la
-    // sélection sur lui (comme Finder/Explorer). Si l'item EST dans la
-    // sélection, on conserve la sélection multiple (drag de groupe).
     if (!selection.has(clipId)) {
-      setSelection(new Set([clipId]));
-      setSelectedId(clipId);
+      selectOnly(clipId);
     }
   };
 
-  const handleDragEnd = (e: DragEndEvent) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     setActiveDragItem(null);
-    const { active, over } = e;
-    if (!over) return;
+    if (!event.over) return;
 
-    const collectionId = over.data.current?.collectionId;
-    const draggedClipId = active.data.current?.clipId;
+    const overData = event.over.data.current;
+    const activeData = event.active.data.current;
+    if (!overData || !activeData) return;
 
-    if (collectionId && draggedClipId) {
-      const clipIds = selection.has(draggedClipId) ? Array.from(selection) : [draggedClipId];
-      setClipsCollection(clipIds, collectionId).then(() => {
+    // Notes drag: { type: "note", noteId } → { collectionId, silo: "notes" }.
+    if (
+      activeData.type === "note" &&
+      typeof activeData.noteId === "string" &&
+      overData.silo === "notes" &&
+      typeof overData.collectionId === "string"
+    ) {
+      notesStore
+        .setNotesCollection([activeData.noteId], overData.collectionId)
+        .then(() => fire("Note déplacée ✓"))
+        .catch((error) => {
+          console.error("[set_notes_collection] failed:", error);
+          fire("Erreur lors du déplacement");
+        });
+      return;
+    }
+
+    // Clipboard drag (silos text/image/link).
+    if (!activeSilo) return;
+    const collectionId = overData.collectionId;
+    const draggedClipId = activeData.clipId;
+    if (typeof collectionId !== "string" || typeof draggedClipId !== "number") return;
+
+    const clipIds = selection.has(draggedClipId) ? Array.from(selection) : [draggedClipId];
+    setClipsCollection(clipIds, collectionId, activeSilo)
+      .then(() => {
         fire(`${clipIds.length} élément${clipIds.length > 1 ? "s" : ""} déplacé${clipIds.length > 1 ? "s" : ""} ✓`);
-        setSelection(new Set());
-      }).catch(err => {
-        console.error("Move failed:", err);
+        clearSelection();
+      })
+      .catch((error) => {
+        console.error("Move failed:", error);
         fire("Erreur lors du déplacement");
       });
-    }
   };
-
-  const handleBatchDelete = () => {
-    if (selection.size > 0) {
-      const type: ItemType = activeTab === "images" ? "image" : activeTab === "links" ? "link" : "text";
-      deleteClips(Array.from(selection), type);
-      setSelection(new Set());
-      fire(`${selection.size} éléments supprimés ✓`);
-    }
-  };
-
-  const handleBatchCopy = () => {
-    if (selection.size > 0) {
-      const type: ItemType = activeTab === "images" ? "image" : activeTab === "links" ? "link" : "text";
-      const items = type === "image" ? filteredImages : type === "link" ? filteredLinks : filteredText;
-      const selected = items.filter(c => selection.has(c.id));
-      if (selected.length === 0) return;
-      if (type === "image") {
-        const imgClip = selected[0] as ImageClip;
-        invoke("copy_image_to_clipboard", { hash: imgClip.hash })
-          .then(() => fire(selected.length > 1 ? "1ère image copiée (sélection multiple)" : "Image copiée ✓"))
-          .catch(console.error);
-      } else {
-        const text = selected.map(c => c.text).join("\n");
-        navigator.clipboard.writeText(text).then(() => {
-          invoke("suppress_next", { text }).catch(() => {});
-          invoke("add_manual_clip", { text })
-            .then(() => fire(`${selected.length} éléments fusionnés ✓`))
-            .catch(console.error);
-        });
-      }
-    }
-  };
-
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
-
-      if (e.key === "Delete") handleBatchDelete();
-      if (e.key === "c" && (e.ctrlKey || e.metaKey)) {
-        if (selection.size > 1) {
-          e.preventDefault();
-          handleBatchCopy();
-        }
-      }
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [selection, activeTab, filteredText, filteredImages, filteredLinks]);
-
-  const handleCapture = () => {
-    invoke("prepare_capture").catch((e) => {
-      console.error(e);
-      fire("Erreur lors de la préparation de la capture");
-    });
-  };
-
-  // Global shortcut Alt+C → capture instantanée (équivalent au clic Sidebar).
-  useEffect(() => {
-    const SHORTCUT = "Alt+C";
-    let registered = false;
-    register(SHORTCUT, (event) => {
-      if (event.state === "Pressed") {
-        handleCapture();
-        setCapturePulse((n) => n + 1);
-      }
-    })
-      .then(() => { registered = true; })
-      .catch((e) => console.error("[global-shortcut] register failed:", e));
-
-    return () => {
-      if (registered) {
-        unregister(SHORTCUT).catch((e) =>
-          console.error("[global-shortcut] unregister failed:", e),
-        );
-      }
-    };
-  }, []);
 
   const handleDoubleClick = (id: number, type: ItemType) => {
-    copyAndPromoteClip(id, type).then(() => {
-      fire(type === "image" ? "Image copiée ✓" : "Copié ✓");
-    });
+    copyAndPromoteClip(id, type)
+      .then((copied) => {
+        if (copied) fire(type === "image" ? "Image copiée ✓" : "Copié ✓");
+      })
+      .catch((error) => {
+        console.error("[copy_clip] failed:", error);
+        fire("Erreur lors de la copie");
+      });
   };
 
-  const handleCtx = ({ e, item, itemType }: { e: React.MouseEvent; item: AnyClip; itemType: ItemType }) => {
+  const handleCtx = ({ e, item, itemType }: { e: MouseEvent; item: AnyClip; itemType: ItemType }) => {
     e.preventDefault();
     if (!selection.has(item.id)) {
-      setSelection(new Set([item.id]));
-      setSelectedId(item.id);
+      selectOnly(item.id);
     }
     setCtx({ x: e.clientX, y: e.clientY, item, itemType });
   };
@@ -395,20 +335,58 @@ export default function App() {
   const getHandlers = (item: AnyClip, type: ItemType): CtxHandlers => {
     const isTextual = type === "text" || type === "link";
     return {
-      copy: () => { setCtx(null); handleDoubleClick(item.id, type); },
-      pin: () => { setCtx(null); togglePinned(item.id, isTextual ? "text" : "image"); },
-      delete: () => { setCtx(null); deleteClips([item.id], isTextual ? "text" : "image"); },
-      edit: () => { setCtx(null); setEditingItem({ item, type }); },
-      copyPlain: isTextual ? () => { setCtx(null); navigator.clipboard.writeText((item as TextClip).text).then(() => fire("Texte brut copié ✓")); } : undefined,
+      copy: () => {
+        setCtx(null);
+        handleDoubleClick(item.id, type);
+      },
+      pin: () => {
+        setCtx(null);
+        togglePinned(item.id, isTextual ? "text" : "image");
+      },
+      delete: () => {
+        setCtx(null);
+        deleteClips([item.id], isTextual ? type : "image")
+          .then(() => fire("Élément supprimé ✓"))
+          .catch((error) => {
+            console.error("[delete_clip] failed:", error);
+            fire("Erreur lors de la suppression");
+          });
+      },
+      edit: () => {
+        setCtx(null);
+        setEditingItem({ item, type });
+      },
+      copyPlain: isTextual
+        ? () => {
+            setCtx(null);
+            copyPlainText((item as TextClip).text)
+              .then(() => fire("Texte brut copié ✓"))
+              .catch((error) => {
+                console.error("[copy_plain] failed:", error);
+                fire("Erreur lors de la copie");
+              });
+          }
+        : undefined,
       open: type === "image"
-        ? () => { setCtx(null); openClip(item, "image"); }
+        ? () => {
+            setCtx(null);
+            openClip(item, "image");
+          }
         : type === "link"
-          ? () => { setCtx(null); openClip(item, "link"); }
+          ? () => {
+              setCtx(null);
+              openClip(item, "link");
+            }
           : undefined,
     };
   };
 
-
+  const handleSettingsChange = (settings: ClipboardSettings) => {
+    updateClipboardSettings(settings).catch((error) => {
+      console.error("[update_clipboard_settings] failed:", error);
+      fire("Erreur lors de l'enregistrement des réglages");
+    });
+  };
 
   return (
     <ThemeProvider theme={theme}>
@@ -441,7 +419,7 @@ export default function App() {
                     if (activeCollectionId === id) setActiveCollectionId(null);
                   }}
                   onRenameCollection={(id, name) => {
-                    const current = activeCollections.find((c) => c.id === id);
+                    const current = activeCollections.find((collection) => collection.id === id);
                     if (current) updateCollection(activeSilo, id, name, current.icon, current.color);
                   }}
                   collectionClipCounts={collectionCounts}
@@ -453,10 +431,11 @@ export default function App() {
                 {activeTab === "links" && <LinksTab links={filteredLinks} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selection={selection} onSelect={handleSelect} />}
                 {activeTab === "favs" && (
                   <div style={{ flex: 1, overflowY: "auto" }}>
-                    <TextTab clips={textClips.filter(c => c.pinned)} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selection={selection} onSelect={handleSelect} />
-                    <ImagesTab images={imageClips.filter(c => c.pinned)} gridCols={3} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selection={selection} onSelect={handleSelect} />
+                    <TextTab clips={pinnedText} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selection={selection} onSelect={handleSelect} />
+                    <ImagesTab images={pinnedImages} gridCols={3} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selection={selection} onSelect={handleSelect} />
                   </div>
                 )}
+                {activeTab === "notes" && <NotesPanel store={notesStore} search={search} fire={fire} />}
                 <DragOverlay adjustScale={false} modifiers={[snapOverlayToCursor]}>
                   {activeDragItem && (
                     <div
@@ -479,8 +458,20 @@ export default function App() {
                         animation: "dragOverlayFadeIn 100ms ease-out",
                       }}
                     >
-                      {activeDragItem.type === "image" ? <Ic.Image width={10} height={10} /> : <Ic.Text width={10} height={10} />}
-                      <span>{selection.size > 1 ? selection.size : 1}</span>
+                      {activeDragItem.type === "image" ? (
+                        <Ic.Image width={10} height={10} />
+                      ) : activeDragItem.type === "note" ? (
+                        <Ic.Note width={10} height={10} />
+                      ) : (
+                        <Ic.Text width={10} height={10} />
+                      )}
+                      <span>
+                        {activeDragItem.type === "note"
+                          ? 1
+                          : selection.size > 1
+                            ? selection.size
+                            : 1}
+                      </span>
                     </div>
                   )}
                 </DragOverlay>
@@ -491,8 +482,12 @@ export default function App() {
                   itemType={editingItem.type}
                   onClose={() => setEditingItem(null)}
                   onSave={(id, text, type, copyAfter) => {
-                    updateTextClip(id, text, type as ItemType, copyAfter);
-                    fire("Modifications enregistrées ✓");
+                    updateTextClip(id, text, type, copyAfter)
+                      .then(() => fire("Modifications enregistrées ✓"))
+                      .catch((error) => {
+                        console.error("[update_clip] failed:", error);
+                        fire("Erreur lors de l'enregistrement");
+                      });
                   }}
                 />
               )}
@@ -501,13 +496,21 @@ export default function App() {
         </div>
         <StatusBar
           tab={activeTab}
-          visibleCount={statusCount}
-          selectedCount={selection.size}
-          collectionName={activeCollectionName}
+          visibleCount={activeTab === "notes" ? notesStore.notes.length : statusCount}
+          selectedCount={activeTab === "notes" ? 0 : selection.size}
+          collectionName={activeTab === "notes" ? null : activeCollectionName}
         />
         {ctx && <CtxMenu x={ctx.x} y={ctx.y} item={ctx.item} itemType={ctx.itemType} handlers={getHandlers(ctx.item, ctx.itemType)} />}
         {sysOpen && <SysDrawer onClose={() => setSysOpen(false)} />}
-        {settOpen && <Settings onClose={() => setSettOpen(false)} themeName={themeName} onThemeChange={setThemeName} autoCap={autoCap} onAutoCapChange={setAutoCap} />}
+        {settOpen && (
+          <Settings
+            onClose={() => setSettOpen(false)}
+            themeName={themeName}
+            onThemeChange={setThemeName}
+            clipboardSettings={clipboardSettings}
+            onClipboardSettingsChange={handleSettingsChange}
+          />
+        )}
         <CreateCollectionModal
           open={createCollectionOpen && activeSilo !== null}
           silo={activeSilo}

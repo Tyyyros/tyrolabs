@@ -17,10 +17,10 @@ use windows::Win32::UI::WindowsAndMessaging::{
 /// Classes de fenêtres shell qu'on veut **toujours** inclure même si elles
 /// sont marquées tool-window, sans titre, ou owned.
 const SHELL_CLASSES: &[&str] = &[
-    "Shell_TrayWnd",            // barre des tâches principale
-    "Shell_SecondaryTrayWnd",   // barre des tâches sur écran secondaire
+    "Shell_TrayWnd",              // barre des tâches principale
+    "Shell_SecondaryTrayWnd",     // barre des tâches sur écran secondaire
     "Windows.UI.Core.CoreWindow", // Start, Search, Cortana, Action Center, notif
-    "ApplicationFrameWindow",   // host UWP (Calc, Photos, Settings, etc.)
+    "ApplicationFrameWindow",     // host UWP (Calc, Photos, Settings, etc.)
 ];
 
 /// Retourne les top-level windows visibles à l'utilisateur, du plus haut z-order

@@ -1,6 +1,43 @@
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+pub const DEFAULT_CAPTURE_ENABLED: bool = true;
+pub const DEFAULT_MAX_HISTORY: usize = 200;
+pub const MIN_MAX_HISTORY: usize = 100;
+pub const MAX_MAX_HISTORY: usize = 5000;
+
+fn default_capture_enabled() -> bool {
+    DEFAULT_CAPTURE_ENABLED
+}
+
+fn default_max_history() -> usize {
+    DEFAULT_MAX_HISTORY
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClipboardSettings {
+    #[serde(default = "default_capture_enabled")]
+    pub capture_enabled: bool,
+    #[serde(default = "default_max_history")]
+    pub max_history: usize,
+}
+
+impl Default for ClipboardSettings {
+    fn default() -> Self {
+        Self {
+            capture_enabled: DEFAULT_CAPTURE_ENABLED,
+            max_history: DEFAULT_MAX_HISTORY,
+        }
+    }
+}
+
+impl ClipboardSettings {
+    pub fn normalized(mut self) -> Self {
+        self.max_history = self.max_history.clamp(MIN_MAX_HISTORY, MAX_MAX_HISTORY);
+        self
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Collection {
     pub id: String,
@@ -102,6 +139,95 @@ impl<'de> Deserialize<'de> for Clip {
 }
 
 use chrono::Local;
+
+// ── Notes ────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum NoteFormat {
+    RichText,
+    Markdown,
+}
+
+impl Default for NoteFormat {
+    fn default() -> Self {
+        NoteFormat::Markdown
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Note {
+    pub id: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub format: NoteFormat,
+    #[serde(default)]
+    pub body: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    pub date: String,
+    pub time: String,
+    #[serde(default)]
+    pub updated_at: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cover_hash: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cover_ext: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collection_id: Option<String>,
+    #[serde(default)]
+    pub pinned: bool,
+    #[serde(default)]
+    pub sort_order: i32,
+}
+
+impl Note {
+    pub fn new(title: String, format: NoteFormat, collection_id: Option<String>) -> Self {
+        let (date, time) = now_date_time();
+        let now_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis();
+        Self {
+            id: format!("note_{now_ms}"),
+            title,
+            format,
+            body: String::new(),
+            tags: Vec::new(),
+            date,
+            time,
+            updated_at: now_ms as u64,
+            cover_hash: None,
+            cover_ext: None,
+            collection_id,
+            pinned: false,
+            sort_order: 0,
+        }
+    }
+}
+
+/// Patch partiel pour `update_note` — chaque champ est optionnel.
+/// Pour effacer `cover_hash` ou `collection_id`, passer la chaîne vide "".
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct NotePatch {
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub body: Option<String>,
+    #[serde(default)]
+    pub format: Option<NoteFormat>,
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
+    #[serde(default)]
+    pub cover_hash: Option<String>,
+    #[serde(default)]
+    pub cover_ext: Option<String>,
+    #[serde(default)]
+    pub collection_id: Option<String>,
+    #[serde(default)]
+    pub pinned: Option<bool>,
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct WindowRect {

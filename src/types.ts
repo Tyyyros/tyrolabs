@@ -1,12 +1,51 @@
 export type ItemType = "text" | "image" | "link";
 export type TextClipType = "text" | "code" | "link";
 
-export type TabId = "text" | "images" | "links" | "favs";
+export type TabId = "text" | "images" | "links" | "favs" | "notes";
+
+export type NoteFormat = "richtext" | "markdown";
+
+export interface Note {
+  id: string;
+  title: string;
+  format: NoteFormat;
+  body: string;
+  tags: string[];
+  date: string;
+  time: string;
+  updated_at: number;
+  cover_hash?: string;
+  cover_ext?: string;
+  collection_id?: string | null;
+  pinned: boolean;
+  sort_order: number;
+}
+
+export interface NotePatch {
+  title?: string;
+  body?: string;
+  format?: NoteFormat;
+  tags?: string[];
+  cover_hash?: string;
+  cover_ext?: string;
+  collection_id?: string;
+  pinned?: boolean;
+}
+
+export interface SavedNoteAsset {
+  hash: string;
+  ext: string;
+}
 
 /** Silo de collections : trois entités totalement cloisonnées (text / image / link).
  *  Chaque silo possède son propre stockage, ses propres IDs, et ses propres
  *  opérations CRUD. Une action sur un silo n'a aucun effet sur les autres. */
 export type CollectionSilo = "text" | "image" | "link";
+
+export interface ClipboardSettings {
+  capture_enabled: boolean;
+  max_history: number;
+}
 
 interface BaseClip {
   id: number;

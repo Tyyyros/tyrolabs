@@ -82,6 +82,7 @@ export function CtxMenu({ x, y, item, itemType, handlers }: Props) {
 
   return (
     <div
+      data-ctx-menu
       onClick={(e) => e.stopPropagation()}
       style={{
         position: "fixed",

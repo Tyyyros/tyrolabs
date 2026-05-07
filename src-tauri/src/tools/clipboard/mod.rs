@@ -6,5 +6,5 @@ pub mod storage;
 pub mod watcher;
 
 pub use commands::*;
-pub use state::{ClipboardState, SuppressState};
+pub use state::{ClipboardState, SuppressNext, SuppressState};
 pub use watcher::start_clipboard_watcher;

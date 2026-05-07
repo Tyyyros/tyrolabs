@@ -1,19 +1,22 @@
 # TyroLabs_V2 - project context
 
-TyroLabs is a Windows desktop clipboard manager. It is not currently organized
-as a generic multi-tool registry; the active product surface is clipboard
-history, collections, images, capture and system/tray UI.
+TyroLabs is a Windows desktop clipboard manager and notebook. The product
+surface covers clipboard history (text/image/link silos with collections),
+the Notes module (hybrid Rich Text / Markdown editor with bento dashboard,
+tags, full-text search and per-note collections), screen capture and system
+tray.
 
 ## Stack
 
 - Tauri v2 for the native desktop shell.
 - Rust backend.
 - React 19 + TypeScript frontend.
-- Tailwind CSS v3 plus inline theme tokens.
+- Inline theme tokens and CSS variables.
 - Vite 7 build.
 - Local SVG icon set in `src/components/icons.tsx`.
-- Lucide React is available for settings-level controls.
-- `@dnd-kit/core` and `@dnd-kit/sortable` for drag and drop.
+- `@dnd-kit/core` for drag and drop.
+- TipTap 2 for the Notes Rich Text editor; `tiptap-markdown` only used for the `.md` export pipeline.
+- `tauri-plugin-dialog` + `@tauri-apps/plugin-dialog` for the Markdown export save dialog.
 - Official Tauri autostart plugin for Windows startup launch control.
 
 ## Current Structure
@@ -32,11 +35,37 @@ TyroLabs_V2/
 |   |   +-- settings/
 |   |   +-- tabs/
 |   |   +-- ui/
+|   +-- components/tools/notes/
+|   |   +-- NotesPanel.tsx
+|   |   +-- NotesSidebar.tsx
+|   |   +-- NotesDashboard.tsx
+|   |   +-- NoteCard.tsx
+|   |   +-- NoteEditor.tsx
+|   |   +-- TagPicker.tsx
+|   |   +-- editor/
+|   |       +-- RichTextEditor.tsx     (TipTap, only editor)
+|   |       +-- FloatingToolbar.tsx
+|   |       +-- SlashMenu.tsx
+|   |       +-- extensions/
+|   |           +-- ImagePaste.ts
+|   |           +-- SlashCommand.ts
+|   |           +-- tippyLite.ts
 |   +-- hooks/
 |   |   +-- useAutostart.ts
+|   |   +-- useAppEvents.ts
+|   |   +-- useClipboardSelection.ts
+|   |   +-- useClipboardShortcuts.ts
+|   |   +-- useClipboardViews.ts
+|   |   +-- useNotesStore.ts
+|   |   +-- useNotesViews.ts
+|   |   +-- useToast.ts
 |   +-- lib/
+|       +-- clips.ts
 |       +-- clipboard-store.ts
 |       +-- colors.ts
+|       +-- image-assets.ts
+|       +-- note-assets.ts
+|       +-- notes-conversion.ts
 |       +-- theme.tsx
 +-- src-tauri/
     +-- tauri.conf.json
@@ -46,27 +75,44 @@ TyroLabs_V2/
     +-- src/
         +-- main.rs
         +-- lib.rs
-        +-- capture.rs
-        +-- clipboard.rs
-        +-- commands.rs
+        +-- error.rs
         +-- models.rs
-        +-- state.rs
-        +-- store.rs
-        +-- tray.rs
+        +-- services/
+        |   +-- store.rs
+        |   +-- system.rs
+        |   +-- tray.rs
+        +-- tools/
+            +-- capture/
+            +-- clipboard/
+            +-- notes/
+                +-- mod.rs
+                +-- state.rs
+                +-- storage.rs
+                +-- commands.rs
+                +-- media.rs
 ```
 
 ## Backend Conventions
 
 - `src-tauri/src/lib.rs` owns the Tauri builder, managed state and
   `tauri::generate_handler!` command registry.
-- `src-tauri/src/state.rs` defines shared in-memory state:
-  clipboard clips and collections are held in `AppState` behind `Mutex`.
-- `src-tauri/src/store.rs` synchronizes that state with the JSON store.
-- `src-tauri/src/clipboard.rs` watches the OS clipboard and emits
+- `src-tauri/src/tools/clipboard/state.rs` defines shared in-memory clipboard
+  state: clips, clipboard settings and collections are held behind `Mutex`.
+- `src-tauri/src/tools/clipboard/storage.rs` synchronizes that state with the
+  JSON store.
+- `src-tauri/src/tools/clipboard/watcher.rs` watches the OS clipboard and emits
   `clipboard://new-item` after inserting new clips.
-- `src-tauri/src/commands.rs` exposes IPC commands used by the frontend.
-- `src-tauri/src/capture.rs` contains Windows window enumeration for the
-  capture overlay.
+- `src-tauri/src/tools/clipboard/commands.rs` exposes clipboard IPC commands
+  used by the frontend.
+- `src-tauri/src/tools/capture/` contains screenshot capture commands and
+  Windows window enumeration for the capture overlay.
+- `src-tauri/src/tools/notes/` owns the Notes module: `state.rs`, `storage.rs`
+  (keys `notes.entries` and `notes.collections` in the shared store),
+  `commands.rs` (CRUD + asset save/path + export markdown + write file) and
+  `media.rs` (asset save/delete and ref extraction for GC). Notes emit
+  `notes://changed` and `notes://deleted`.
+- Clipboard settings are persisted under `clipboard.settings` with
+  `capture_enabled` and `max_history`.
 - Avoid `unwrap()` for user-driven data and external IO. `expect(...)` is
   acceptable only for internal invariants such as poisoned mutexes.
 - IPC command names in Rust must stay synchronized with frontend `invoke`
@@ -74,7 +120,19 @@ TyroLabs_V2/
 
 ## Frontend Conventions
 
-- `src/lib/clipboard-store.ts` is the main frontend bridge to backend commands.
+- `src/lib/clipboard-store.ts` is the main frontend bridge to clipboard backend commands.
+- `src/hooks/useNotesStore.ts` is the Notes IPC bridge (CRUD, collections, assets, export, file write).
+- `src/hooks/useClipboardViews.ts` owns filtered text/image/link/favorites
+  derivations.
+- `src/hooks/useNotesViews.ts` owns notes filtering by collection / tags / search and tag aggregation.
+- `src/hooks/useClipboardSelection.ts` owns single, multi and range selection.
+- `src/lib/image-assets.ts` caches image hash to `asset://` URL resolution.
+- `src/lib/note-assets.ts` mirrors that cache for note assets and exposes
+  `saveNoteAsset` and the `note-asset://<hash>.<ext>` reference scheme used
+  for backend GC.
+- `src/lib/notes-conversion.ts` runs a headless TipTap editor with
+  `tiptap-markdown` to convert TipTap JSON to Markdown on `.md` export.
+  There is no in-app Markdown editor and no Markdown→TipTap path.
 - `src/hooks/useAutostart.ts` owns the frontend autostart state machine.
 - `src/types.ts` is the TypeScript contract for serialized Rust models.
 - `collection_id` is the active frontend and serialized field name for clip
@@ -95,6 +153,11 @@ TyroLabs_V2/
   `asset://` protocol.
 - Image garbage collection deletes files removed from history or truncated by
   the history limit.
+- The Notes module ships a Rich Text block editor (slash menu, floating
+  toolbar) with a bento dashboard, per-note collections (drag and drop),
+  tags, full-text search and Markdown export through the Tauri save dialog.
+- Inline note media are stored under `<app_data>/notes_assets/` and garbage
+  collected when notes change format or are deleted.
 - Screen capture is integrated through a dedicated overlay window and Rust
   screenshot commands.
 - Windows startup launch is managed through `tauri-plugin-autostart` with

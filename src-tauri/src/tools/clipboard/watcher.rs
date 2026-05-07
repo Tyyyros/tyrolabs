@@ -7,8 +7,10 @@ use std::{
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::models::{now_date_time, Clip};
-use crate::tools::clipboard::state::ClipboardState;
-use crate::tools::clipboard::storage::{delete_image_file, save_history, truncate_history};
+use crate::tools::clipboard::state::{ClipboardState, SuppressNext};
+use crate::tools::clipboard::storage::{
+    delete_image_file, hash_image_bytes, save_history, truncate_history,
+};
 
 fn rgb_to_hue(r: f32, g: f32, b: f32) -> f32 {
     let r = r / 255.0;
@@ -36,7 +38,7 @@ fn rgb_to_hue(r: f32, g: f32, b: f32) -> f32 {
 pub fn start_clipboard_watcher(
     app: AppHandle,
     last_text: Arc<Mutex<String>>,
-    suppress: Arc<Mutex<Option<String>>>,
+    suppress: Arc<Mutex<SuppressNext>>,
 ) {
     thread::spawn(move || {
         let mut clipboard = match Clipboard::new() {
@@ -54,15 +56,25 @@ pub fn start_clipboard_watcher(
 
             // Check for images first
             if let Ok(img) = clipboard.get_image() {
-                use std::collections::hash_map::DefaultHasher;
-                use std::hash::{Hash, Hasher};
-                let mut hasher = DefaultHasher::new();
-                img.bytes.hash(&mut hasher);
-                let img_hash_num = hasher.finish();
-                let img_hash = format!("img_{img_hash_num}");
+                let img_hash = hash_image_bytes(img.bytes.as_ref());
 
                 if img_hash != last_image_hash {
                     last_image_hash = img_hash.clone();
+
+                    let state = app.state::<ClipboardState>();
+                    let settings = state.settings.lock().unwrap().clone();
+
+                    {
+                        let mut sup = suppress.lock().unwrap();
+                        if sup.image_hash.as_deref() == Some(img_hash.as_str()) {
+                            sup.image_hash = None;
+                            continue;
+                        }
+                    }
+
+                    if !settings.capture_enabled {
+                        continue;
+                    }
 
                     let width = img.width as u32;
                     let height = img.height as u32;
@@ -110,13 +122,12 @@ pub fn start_clipboard_watcher(
                         sort_order: 0,
                     };
 
-                    let state = app.state::<ClipboardState>();
                     let mut history = state.clips.lock().unwrap();
                     if !history.is_empty() && history[0].hash.as_deref() == Some(&img_hash) {
                         continue;
                     }
                     history.insert(0, clip.clone());
-                    let removed = truncate_history(&mut history);
+                    let removed = truncate_history(&mut history, settings.max_history);
                     for hash in removed {
                         delete_image_file(&app, &hash);
                     }
@@ -127,35 +138,39 @@ pub fn start_clipboard_watcher(
                 }
             }
 
-            let Ok(text) = clipboard.get_text() else {
+            let Ok(raw_text) = clipboard.get_text() else {
                 continue;
             };
-            let text = text.trim().to_string();
-            if text.is_empty() {
+            if raw_text.trim().is_empty() {
                 continue;
             }
 
             {
                 let mut sup = suppress.lock().unwrap();
-                if sup.as_deref() == Some(text.as_str()) {
-                    *sup = None;
+                if sup.text.as_deref() == Some(raw_text.as_str()) {
+                    sup.text = None;
                     let mut last = last_text.lock().unwrap();
-                    *last = text;
+                    *last = raw_text;
                     continue;
                 }
             }
 
             let mut last = last_text.lock().unwrap();
-            if *last == text {
+            if *last == raw_text {
                 continue;
             }
-            *last = text.clone();
+            *last = raw_text.clone();
             drop(last);
 
             let state = app.state::<ClipboardState>();
+            let settings = state.settings.lock().unwrap().clone();
+            if !settings.capture_enabled {
+                continue;
+            }
+
             let mut history = state.clips.lock().unwrap();
 
-            if history.first().map(|c| c.text.as_str()) == Some(text.as_str()) {
+            if history.first().map(|c| c.text.as_str()) == Some(raw_text.as_str()) {
                 continue;
             }
 
@@ -169,7 +184,7 @@ pub fn start_clipboard_watcher(
 
             let clip = Clip {
                 id,
-                text: text.clone(),
+                text: raw_text.clone(),
                 date,
                 time,
                 clip_type,
@@ -182,7 +197,7 @@ pub fn start_clipboard_watcher(
             };
 
             history.insert(0, clip.clone());
-            let removed = truncate_history(&mut history);
+            let removed = truncate_history(&mut history, settings.max_history);
             for hash in removed {
                 delete_image_file(&app, &hash);
             }

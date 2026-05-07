@@ -3,9 +3,8 @@ import type { ImageClip, ItemType, Theme } from "../../types";
 import { useTheme } from "../../lib/theme";
 import { C, hexToRgba } from "../../lib/colors";
 import { Ic } from "../icons";
-import { SortableContext, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { useDraggable } from "@dnd-kit/core";
+import { resolveImageAsset } from "../../lib/image-assets";
 
 interface CtxArgs {
   e: React.MouseEvent;
@@ -34,24 +33,26 @@ export function ImagesTab({ images, onCtx, onDoubleClick, gridCols, selection, o
       <div
         style={{ display: "grid", gridTemplateColumns: `repeat(${gridCols},1fr)`, gap: 10 }}
       >
-        <SortableContext items={sorted.map(c => c.id.toString())} strategy={rectSortingStrategy}>
-          {sorted.map((img, i) => (
-            <ImgRow
-              key={img.id}
-              img={img}
-              index={i}
-              sortedImages={sorted}
-              onCtx={onCtx}
-              onDoubleClick={onDoubleClick}
-              selected={selection.has(img.id)}
-              onSelect={(id, e) => onSelect(id, e, sorted)}
-              theme={theme}
-            />
-          ))}
-        </SortableContext>
+        {sorted.map((img, i) => (
+          <ImgRow
+            key={img.id}
+            img={img}
+            index={i}
+            sortedImages={sorted}
+            onCtx={onCtx}
+            onDoubleClick={onDoubleClick}
+            selected={selection.has(img.id)}
+            onSelect={(id, e) => onSelect(id, e, sorted)}
+            theme={theme}
+          />
+        ))}
       </div>
     </div>
   );
+}
+
+function toTranslate(transform: { x: number; y: number } | null) {
+  return transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined;
 }
 
 function ImgRow({
@@ -74,7 +75,7 @@ function ImgRow({
   theme: Theme;
 }) {
   const [hov, setHov] = useState(false);
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: img.id.toString(),
     data: { clipId: img.id, type: "image" },
   });
@@ -85,8 +86,8 @@ function ImgRow({
     outline: img.pinned ? `2px solid ${theme.accent}` : "none",
     outlineOffset: 1,
     borderRadius: 6,
-    transition: transition || "all 0.12s",
-    transform: CSS.Translate.toString(transform),
+    transition: "opacity 0.12s",
+    transform: toTranslate(transform),
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 10 : 1,
     position: "relative" as const,
@@ -202,10 +203,10 @@ function ImgView({ hash }: { hash: string }) {
     let active = true;
     setStatus("loading");
     setSrc(null);
-    invoke<string>("get_image_path", { hash })
-      .then((filePath) => {
+    resolveImageAsset(hash)
+      .then((assetUrl) => {
         if (!active) return;
-        setSrc(convertFileSrc(filePath));
+        setSrc(assetUrl);
       })
       .catch((e) => {
         if (!active) return;

@@ -1,87 +1,165 @@
 # TyroLabs_V2 — contexte projet
 
-Toolbox Windows modulaire et responsive. Chaque "outil" est une unité autonome qui vit côté backend Rust **et** côté frontend React, branchée par un registre unique de chaque côté.
+Application desktop Windows : gestionnaire de presse-papiers avancé + module
+Notes (éditeur hybride Rich Text / Markdown). Chaque "outil" est une unité
+autonome qui vit côté backend Rust **et** côté frontend React, branchée par
+un handler Tauri unique côté backend et par un onglet/registre côté frontend.
 
 ## Stack
 
 - **Tauri v2** (backend Rust, fenêtre native Windows)
-- **React + TypeScript** (frontend)
-- **Tailwind CSS** (styling)
-- **lucide-react** (icônes)
-- **Vite** (build)
+- **React 19 + TypeScript** (frontend)
+- **Vite 7** (build)
+- **Styles inline + tokens de thème** via CSS variables (pas de Tailwind, pas
+  de framework CSS — tout passe par `useTheme()` et `C` dans
+  `src/lib/colors.ts`)
+- **Icônes locales SVG** dans `src/components/icons.tsx` (`Ic.*`)
+- `@dnd-kit/core` pour le drag & drop
+- **TipTap 2** pour l'éditeur RTE des Notes (seul éditeur, pas de mode Markdown)
+- `tiptap-markdown` uniquement pour le pipeline d'export `.md`
+- `tauri-plugin-store` pour la persistance JSON partagée
+- `tauri-plugin-dialog` pour le save dialog (export `.md`)
+- `tauri-plugin-autostart` pour le lancement Windows
 
 ## Structure de dossiers
 
 ```
 TyroLabs_V2/
-├── src/                          # Frontend React
-│   ├── App.tsx                   # sélection d'outil + routing minimal
+├── src/                                 # Frontend React
+│   ├── App.tsx                          # routing onglets + DndContext global
 │   ├── components/
-│   │   ├── layout/               # Layout, TitleBar, Sidebar
-│   │   ├── ui/                   # Card, Button, etc. (réutilisables)
-│   │   └── tools/<nom>/          # 1 dossier par outil
+│   │   ├── layout/                      # TitleBar, Sidebar, StatusBar
+│   │   ├── overlays/                    # Settings, SysDrawer, EditorPanel, CtxMenu
+│   │   ├── groups/                      # CollectionBar, CreateCollectionModal
+│   │   ├── tabs/                        # TextTab, ImagesTab, LinksTab
+│   │   ├── tools/notes/                 # Module Notes complet
+│   │   │   ├── NotesPanel.tsx           # orchestrateur (sidebar + dashboard | éditeur)
+│   │   │   ├── NotesSidebar.tsx         # collections (droppables) + tags
+│   │   │   ├── NotesDashboard.tsx       # bento grid
+│   │   │   ├── NoteCard.tsx             # carte (drag source)
+│   │   │   ├── NoteEditor.tsx           # header + RTE
+│   │   │   ├── TagPicker.tsx
+│   │   │   └── editor/
+│   │   │       ├── RichTextEditor.tsx   # TipTap (seul éditeur)
+│   │   │       ├── FloatingToolbar.tsx  # bubble menu sur sélection
+│   │   │       ├── SlashMenu.tsx        # popup React des commandes /
+│   │   │       └── extensions/
+│   │   │           ├── SlashCommand.ts  # extension TipTap (suggestion)
+│   │   │           ├── ImagePaste.ts    # extension TipTap (paste/drop)
+│   │   │           └── tippyLite.ts     # positionneur popup minimal
+│   │   ├── ui/                          # Toggle, Toast (réutilisables)
+│   │   └── icons.tsx                    # `Ic.*`
+│   ├── hooks/
+│   │   ├── useAppEvents.ts
+│   │   ├── useAutostart.ts
+│   │   ├── useClipboardSelection.ts
+│   │   ├── useClipboardShortcuts.ts
+│   │   ├── useClipboardViews.ts
+│   │   ├── useNotesStore.ts             # IPC bridge Notes
+│   │   ├── useNotesViews.ts             # filtrage collection/tags/recherche
+│   │   └── useToast.ts
 │   ├── lib/
-│   │   ├── tools.ts              # ⭐ registre frontend des outils
-│   │   └── invoke.ts             # wrapper typé autour de tauri::invoke
-│   └── types/
+│   │   ├── clipboard-store.ts           # IPC bridge clipboard
+│   │   ├── colors.ts                    # tokens C.*
+│   │   ├── theme.tsx                    # ThemeProvider + useTheme()
+│   │   ├── image-assets.ts              # cache hash → asset:// (clipboard)
+│   │   ├── note-assets.ts               # cache hash → asset:// (notes) + saveNoteAsset
+│   │   └── notes-conversion.ts          # TipTap JSON → Markdown pour export .md
+│   ├── themes.ts                        # 10 thèmes (5 sombres / 5 clairs)
+│   ├── types.ts                         # contrats partagés Rust↔TS
+│   └── main.tsx
 │
-└── src-tauri/                    # Backend Rust
-    ├── tauri.conf.json           # decorations: false → barre de titre custom
-    ├── capabilities/default.json # ACL Tauri v2 (window controls + drag)
+└── src-tauri/                           # Backend Rust
+    ├── Cargo.toml
+    ├── tauri.conf.json
+    ├── capabilities/default.json        # ACL : window, store, dialog:save, autostart
     └── src/
-        ├── main.rs               # 4 lignes → appelle lib::run()
-        ├── lib.rs                # ⭐ Builder + liste invoke_handler!
-        ├── error.rs              # ToolError + impl Serialize
-        ├── state.rs              # AppState (champs Mutex)
+        ├── main.rs                      # appelle lib::run()
+        ├── lib.rs                       # Builder + .manage() + invoke_handler!
+        ├── error.rs                     # ToolError + ToolResult<T>
+        ├── models.rs                    # Clip, Collection, Note, NoteFormat, NotePatch
+        ├── services/
+        │   ├── store.rs                 # STORE_FILE + migrate_key
+        │   ├── system.rs                # primitives OS partagées
+        │   └── tray.rs                  # tray menu
         └── tools/
-            ├── mod.rs            # pub mod <nom>;
-            └── <nom>/
-                ├── mod.rs        # entrées #[tauri::command]
-                └── *.rs          # logique pure, testable cargo test
+            ├── capture/                 # capture d'écran
+            ├── clipboard/               # historique + collections (3 silos)
+            └── notes/                   # CRUD notes + collections + médias + export
+                ├── mod.rs
+                ├── state.rs             # NotesState : Mutex<Vec<Note>> + Mutex<Vec<Collection>>
+                ├── storage.rs           # clés notes.entries / notes.collections
+                ├── commands.rs          # 12 commandes Tauri
+                └── media.rs             # save/get/delete asset + extract_asset_refs
 ```
 
 ## Convention : ajouter un outil
 
 Pas de dispatcher central qui grossit. Pour un nouvel outil `<nom>` :
 
-1. **Backend** — créer `src-tauri/src/tools/<nom>/mod.rs` avec `#[tauri::command] pub async fn ...` (et la logique pure dans des sous-fichiers).
+1. **Backend** — créer `src-tauri/src/tools/<nom>/` avec `mod.rs`,
+   `state.rs`, `storage.rs`, `commands.rs` (calque sur `clipboard/` ou
+   `notes/`). Les commandes renvoient `ToolResult<T>`.
 2. Déclarer dans `src-tauri/src/tools/mod.rs` : `pub mod <nom>;`.
-3. Ajouter chaque commande dans le `tauri::generate_handler![...]` de `src-tauri/src/lib.rs`.
-4. **Frontend** — créer `src/components/tools/<nom>/<Nom>Tool.tsx`.
-5. Enregistrer dans `src/lib/tools.ts` (id, label, icône Lucide, composant).
+3. Brancher l'état (`app.manage(<Nom>State { ... })`) dans le `setup` de
+   `lib.rs`, et ajouter chaque commande dans `tauri::generate_handler![...]`.
+4. **Frontend** — créer `src/components/tools/<nom>/<Nom>Panel.tsx` (ou un
+   `tab` dans `src/components/tabs/` si l'outil partage la grille
+   clipboard).
+5. Ajouter l'id dans `TabId` (`src/types.ts`), l'item dans le `NAV` de
+   `Sidebar.tsx`, l'icône dans `icons.tsx`, le rendu dans `App.tsx`.
+6. Si l'outil consomme du DnD : étendre `handleDragStart` / `handleDragEnd`
+   de `App.tsx` (un seul `DndContext` global).
 
 ## Règles transverses
 
-- **Erreurs** : tout chemin renvoie `Result<T, ToolError>`. Ajouter une variante dans `error.rs` plutôt qu'un nouveau type d'erreur ad hoc.
-- **État partagé** : champs dans `AppState` (`Mutex` pour court, `tokio::sync::RwLock` pour long-running concurrent).
-- **Logique pure** : dans des fichiers séparés des commandes Tauri pour pouvoir la tester sans booter Tauri.
-- **Aucun `unwrap()`** sur les entrées utilisateur ; `expect("...")` réservé aux invariants internes (mutex empoisonné, etc.).
+- **Erreurs** : tout chemin renvoie `Result<T, ToolError>`. Ajouter une
+  variante dans `error.rs` plutôt qu'un nouveau type d'erreur ad hoc.
+- **État partagé** : champs `Mutex` dans la struct dédiée à l'outil,
+  `app.manage()` au boot. Les outils n'accèdent pas à l'état des autres.
+- **Persistance** : clé namespacée `<tool>.<key>` dans le fichier store
+  partagé (`STORE_FILE` de `services/store.rs`). Une migration via
+  `migrate_key` est attendue pour toute clé renommée.
+- **Logique pure** : dans des fichiers séparés des commandes Tauri pour
+  pouvoir tester sans booter Tauri (`cargo test`).
+- **Aucun `unwrap()`** sur les entrées utilisateur ou IO externe ; `expect`
+  réservé aux invariants internes (mutex empoisonné, etc.).
+- **IPC** : les noms de commandes Rust (`#[tauri::command]`) doivent rester
+  alignés avec les `invoke("<nom>", { ... })` côté frontend. TypeScript ne
+  capture pas les drifts.
 
 ## Conventions UI
 
-- Barre de titre custom (`decorations: false`).
-- Zone draggable via `data-tauri-drag-region` sur le fond de la barre.
-- Contrôles fenêtre via `getCurrentWindow().{minimize, toggleMaximize, close}()` (depuis `@tauri-apps/api/window`).
-- Thème sombre par défaut : `bg-zinc-950`, `text-zinc-100`, accents `indigo-600`.
-- Chaque outil rend dans une `<Card>` dans le panneau principal.
+- Barre de titre custom (`decorations: false`), drag via
+  `data-tauri-drag-region`.
+- Contrôles fenêtre via `getCurrentWindow().{minimize, toggleMaximize, close}()`.
+- **Styles inline + thème** : pas de Tailwind. Tous les styles passent par
+  `useTheme()` et les tokens `C.*`. Les couleurs avec opacité utilisent
+  `hexToRgba(theme.accent, 0.18)`.
+- Icônes via `<Ic.<Name> />` — toutes locales, stroke configurable.
 
 ## Outils
 
-| Outil | Statut    | Module backend                        | Composant frontend                                  |
-|-------|-----------|---------------------------------------|----------------------------------------------------|
-| hash  | 🚧 prévu | `src-tauri/src/tools/hash/`           | `src/components/tools/hash/HashTool.tsx`           |
+| Outil     | Statut       | Module backend                | Composant frontend                              |
+|-----------|--------------|-------------------------------|-------------------------------------------------|
+| clipboard | ✅ livré     | `src-tauri/src/tools/clipboard/` | `src/components/tabs/{Text,Images,Links}Tab.tsx` |
+| notes     | ✅ livré     | `src-tauri/src/tools/notes/`     | `src/components/tools/notes/NotesPanel.tsx`     |
+| capture   | ✅ livré     | `src-tauri/src/tools/capture/`   | webview dédiée `/capture`                       |
 
 ## État du repo
 
 - Code source local : `C:\Users\lambe\TyroLabs_V2`
 - Repo public GitHub : https://github.com/Tyyyros/tyrolabs
-- Pas encore scaffoldé — la prochaine étape est `npm create tauri-app@latest -- --template react-ts` puis ajout de Tailwind, Lucide et des crates `sha2 hex thiserror`.
 
 ## Règle de synchro (instruction utilisateur)
 
-Toute évolution significative de l'app (nouvel outil, nouveau module, changement de structure, changement de stack, décision d'archi) doit être reflétée **simultanément** dans :
+Toute évolution significative de l'app (nouvel outil, nouveau module,
+changement de structure, changement de stack, décision d'archi) doit être
+reflétée **simultanément** dans :
 
 1. Le README de `Tyyyros/tyrolabs` sur GitHub
-2. Ce fichier `CLAUDE.md`
+2. `AGENTS.md`
+3. Ce fichier `CLAUDE.md`
 
-Pas de cosmétique (typo, virgule) — uniquement les changements porteurs de sens.
+Pas de cosmétique (typo, virgule) — uniquement les changements porteurs de
+sens.

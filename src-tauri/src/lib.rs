@@ -10,8 +10,12 @@ use tauri_plugin_autostart::ManagerExt;
 use crate::services::system;
 use crate::services::tray;
 use crate::tools::capture::{self, CaptureState};
-use crate::tools::clipboard::storage::{load_collections, load_history, CollectionSilo};
-use crate::tools::clipboard::{self, ClipboardState, SuppressState};
+use crate::tools::clipboard::storage::{
+    load_collections, load_history, load_settings, CollectionSilo,
+};
+use crate::tools::clipboard::{self, ClipboardState, SuppressNext, SuppressState};
+use crate::tools::notes::storage::{load_note_collections, load_notes};
+use crate::tools::notes::{self, NotesState};
 
 const AUTOSTART_ARG: &str = "--autostart";
 
@@ -22,7 +26,7 @@ fn launched_from_autostart() -> bool {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let last_text = Arc::new(Mutex::new(String::new()));
-    let suppress = Arc::new(Mutex::new(None::<String>));
+    let suppress = Arc::new(Mutex::new(SuppressNext::default()));
     let silent_autostart = launched_from_autostart();
 
     tauri::Builder::default()
@@ -33,6 +37,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .manage(SuppressState(Arc::clone(&suppress)))
         .invoke_handler(tauri::generate_handler![
             // services/system : primitives OS partagées
@@ -43,8 +48,9 @@ pub fn run() {
             system::get_system_info,
             // tools/clipboard
             clipboard::get_history,
+            clipboard::get_clipboard_settings,
+            clipboard::update_clipboard_settings,
             clipboard::toggle_pinned,
-            clipboard::delete_clip,
             clipboard::delete_clips,
             clipboard::update_clip,
             clipboard::suppress_next,
@@ -56,29 +62,49 @@ pub fn run() {
             clipboard::create_collection,
             clipboard::update_collection,
             clipboard::delete_collection,
-            clipboard::set_clip_collection,
             clipboard::set_clips_collection,
-            clipboard::ungroup_clip,
-            clipboard::reorder_clips_in_collection,
             // tools/capture
             capture::prepare_capture,
             capture::get_capture_data,
             capture::cancel_capture,
             capture::save_capture_area,
+            // tools/notes
+            notes::get_notes,
+            notes::create_note,
+            notes::update_note,
+            notes::delete_note,
+            notes::set_notes_collection,
+            notes::get_note_collections,
+            notes::create_note_collection,
+            notes::update_note_collection,
+            notes::delete_note_collection,
+            notes::save_note_asset_cmd,
+            notes::get_note_asset_path,
+            notes::export_note_markdown,
+            notes::write_note_to_file,
         ])
         .setup(move |app| {
             // Load initial data into memory
             let history = load_history(app.handle());
+            let settings = load_settings(app.handle());
             let text_collections = load_collections(app.handle(), CollectionSilo::Text);
             let image_collections = load_collections(app.handle(), CollectionSilo::Image);
             let link_collections = load_collections(app.handle(), CollectionSilo::Link);
             app.manage(ClipboardState {
                 clips: Mutex::new(history),
+                settings: Mutex::new(settings),
                 text_collections: Mutex::new(text_collections),
                 image_collections: Mutex::new(image_collections),
                 link_collections: Mutex::new(link_collections),
             });
             app.manage(CaptureState::default());
+
+            let notes_list = load_notes(app.handle());
+            let note_collections = load_note_collections(app.handle());
+            app.manage(NotesState {
+                notes: Mutex::new(notes_list),
+                collections: Mutex::new(note_collections),
+            });
 
             let app_handle = app.handle().clone();
             let last = Arc::clone(&last_text);

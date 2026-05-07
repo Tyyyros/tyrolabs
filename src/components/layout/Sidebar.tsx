@@ -19,6 +19,7 @@ const NAV: (NavItem | null)[] = [
   { id: "images", Icon: Ic.Image, label: "Images" },
   { id: "links", Icon: Ic.Link, label: "Liens" },
   null,
+  { id: "notes", Icon: Ic.Note, label: "Notes" },
   { id: "favs", Icon: Ic.Star, label: "Favoris" },
 ];
 

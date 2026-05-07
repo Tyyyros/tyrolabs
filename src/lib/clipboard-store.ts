@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 
 import type {
   AnyClip,
+  ClipboardSettings,
   CollectionSilo,
   ImageClip,
   ItemType,
@@ -11,6 +12,11 @@ import type {
   Collection,
 } from "../types";
 import { isImageClip } from "../types";
+
+const DEFAULT_CLIPBOARD_SETTINGS: ClipboardSettings = {
+  capture_enabled: true,
+  max_history: 200,
+};
 
 function isTextualItemType(itemType: ItemType): itemType is Exclude<ItemType, "image"> {
   return itemType !== "image";
@@ -43,6 +49,9 @@ export function useClipboardStore() {
   const [textCollections, setTextCollections] = useState<Collection[]>([]);
   const [imageCollections, setImageCollections] = useState<Collection[]>([]);
   const [linkCollections, setLinkCollections] = useState<Collection[]>([]);
+  const [clipboardSettings, setClipboardSettings] = useState<ClipboardSettings>(
+    DEFAULT_CLIPBOARD_SETTINGS,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -54,6 +63,12 @@ export function useClipboardStore() {
         setImageClips(history.filter(isImageClip));
       })
       .catch((e) => console.error("[get_history] failed:", e));
+
+    invoke<ClipboardSettings>("get_clipboard_settings")
+      .then((settings) => {
+        if (!cancelled) setClipboardSettings(settings);
+      })
+      .catch((e) => console.error("[get_clipboard_settings] failed:", e));
 
     // Charger les trois silos en parallèle.
     const setters: Record<CollectionSilo, (items: Collection[]) => void> = {
@@ -109,12 +124,34 @@ export function useClipboardStore() {
 
   const copyClip = useCallback(async (item: AnyClip, _itemType: ItemType) => {
     if (isImageClip(item)) {
-      // Copy actual bitmap to clipboard via backend
       await invoke("copy_image_to_clipboard", { hash: item.hash });
     } else {
       await copyTextToClipboard(item.text);
     }
   }, []);
+
+  const copyPlainText = useCallback(async (text: string) => {
+    await copyTextToClipboard(text);
+  }, []);
+
+  const copyMergedClips = useCallback(async (items: AnyClip[], itemType: ItemType) => {
+    if (items.length === 0) return false;
+
+    if (itemType === "image") {
+      await copyClip(items[0], "image");
+      return true;
+    }
+
+    const text = items
+      .filter((item): item is TextClip => !isImageClip(item))
+      .map((item) => item.text)
+      .join("\n");
+    if (!text.trim()) return false;
+
+    await copyTextToClipboard(text);
+    await invoke("add_manual_clip", { text });
+    return true;
+  }, [copyClip]);
 
   const copyAndPromoteClip = useCallback(
     async (id: number, itemType: ItemType): Promise<boolean> => {
@@ -154,12 +191,13 @@ export function useClipboardStore() {
     setImageClips((prev) => toggle(prev));
   }, []);
 
-  const deleteClips = useCallback((ids: number[], itemType: ItemType) => {
-    invoke("delete_clips", { ids }).catch(console.error);
+  const deleteClips = useCallback(async (ids: number[], itemType: ItemType) => {
+    await invoke("delete_clips", { ids });
+    const idSet = new Set(ids);
     if (isTextualItemType(itemType)) {
-      setTextClips((prev) => prev.filter((clip) => !ids.includes(clip.id)));
+      setTextClips((prev) => prev.filter((clip) => !idSet.has(clip.id)));
     } else {
-      setImageClips((prev) => prev.filter((clip) => !ids.includes(clip.id)));
+      setImageClips((prev) => prev.filter((clip) => !idSet.has(clip.id)));
     }
   }, []);
 
@@ -180,17 +218,28 @@ export function useClipboardStore() {
 
   const updateTextClip = useCallback(
     async (id: number, text: string, itemType: ItemType, copyAfter = false) => {
-      if (!isTextualItemType(itemType)) return;
+      await invoke("update_clip", { id, text });
+      if (isTextualItemType(itemType)) {
+        setTextClips((prev) => prev.map((clip) => (clip.id === id ? { ...clip, text } : clip)));
+      } else {
+        setImageClips((prev) => prev.map((clip) => (clip.id === id ? { ...clip, text } : clip)));
+      }
 
-      invoke("update_clip", { id, text }).catch(console.error);
-      setTextClips((prev) => prev.map((clip) => (clip.id === id ? { ...clip, text } : clip)));
-
-      if (copyAfter) {
+      if (copyAfter && isTextualItemType(itemType)) {
         await copyTextToClipboard(text);
       }
     },
     [],
   );
+
+  const updateClipboardSettings = useCallback(async (settings: ClipboardSettings) => {
+    const saved = await invoke<ClipboardSettings>("update_clipboard_settings", { settings });
+    setClipboardSettings(saved);
+    const history = await invoke<AnyClip[]>("get_history");
+    setTextClips(history.filter((clip): clip is TextClip => !isImageClip(clip)));
+    setImageClips(history.filter(isImageClip));
+    return saved;
+  }, []);
 
   // ── Helpers silo-aware ─────────────────────────────────────────
   const setterFor = useCallback(
@@ -248,44 +297,42 @@ export function useClipboardStore() {
     [setterFor],
   );
 
-  const setClipsCollection = useCallback(async (clipIds: number[], collectionId: string) => {
-    await invoke("set_clips_collection", { clipIds, collectionId });
-    const update = <T extends { id: number; collection_id?: string | null }>(prev: T[]) => prev.map((c) => (clipIds.includes(c.id) ? { ...c, collection_id: collectionId } : c));
-    setTextClips(update);
-    setImageClips(update);
-  }, []);
-
-  const ungroupClip = useCallback(async (clipId: number) => {
-    await invoke("ungroup_clip", { clipId });
-    setTextClips((prev) => prev.map((c) => (c.id === clipId ? { ...c, collection_id: null, sort_order: 0 } : c)));
-    setImageClips((prev) => prev.map((c) => (c.id === clipId ? { ...c, collection_id: null, sort_order: 0 } : c)));
-  }, []);
-
-  const reorderInCollection = useCallback(async (clipIds: number[]) => {
-    await invoke("reorder_clips_in_collection", { clipIds });
-    const orderMap = new Map(clipIds.map((id, i) => [id, i]));
-    const reorder = <T extends { id: number; sort_order?: number }>(items: T[]): T[] =>
-      items.map((c) => (orderMap.has(c.id) ? { ...c, sort_order: orderMap.get(c.id)! } : c));
-    setTextClips((prev) => reorder(prev));
-    setImageClips((prev) => reorder(prev));
-  }, []);
+  const setClipsCollection = useCallback(
+    async (clipIds: number[], collectionId: string, silo: CollectionSilo) => {
+      await invoke("set_clips_collection", { clipIds, collectionId, silo });
+      const idSet = new Set(clipIds);
+      const update = <T extends { id: number; collection_id?: string | null; sort_order?: number }>(
+        prev: T[],
+      ) => prev.map((clip) =>
+        idSet.has(clip.id) ? { ...clip, collection_id: collectionId, sort_order: 0 } : clip,
+      );
+      if (silo === "image") {
+        setImageClips(update);
+      } else {
+        setTextClips(update);
+      }
+    },
+    [],
+  );
 
   return {
     textClips,
     imageClips,
+    clipboardSettings,
     textCollections,
     imageCollections,
     linkCollections,
+    copyPlainText,
+    copyMergedClips,
     copyAndPromoteClip,
     togglePinned,
     deleteClips,
     openClip,
     updateTextClip,
+    updateClipboardSettings,
     createCollection,
     updateCollection,
     deleteCollection,
     setClipsCollection,
-    ungroupClip,
-    reorderInCollection,
   };
 }

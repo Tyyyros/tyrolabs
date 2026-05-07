@@ -13,12 +13,11 @@ use serde::Deserialize;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_store::StoreExt;
 
-use crate::models::{Clip, Collection};
+use crate::models::{Clip, ClipboardSettings, Collection};
 use crate::services::store::{migrate_key, STORE_FILE};
 
-pub const MAX_HISTORY: usize = 200;
-
 const HISTORY_KEY: &str = "clipboard.history";
+const SETTINGS_KEY: &str = "clipboard.settings";
 
 // Anciennes clés (avant namespacing) — migrées au premier load.
 const LEGACY_HISTORY_KEY: &str = "history";
@@ -76,17 +75,40 @@ pub fn save_history(app: &AppHandle, history: &Vec<Clip>) {
     }
 }
 
+pub fn load_settings(app: &AppHandle) -> ClipboardSettings {
+    let store = match app.store(STORE_FILE) {
+        Ok(s) => s,
+        Err(_) => return ClipboardSettings::default(),
+    };
+    store
+        .get(SETTINGS_KEY)
+        .and_then(|v| serde_json::from_value::<ClipboardSettings>(v).ok())
+        .unwrap_or_default()
+        .normalized()
+}
+
+pub fn save_settings(app: &AppHandle, settings: &ClipboardSettings) {
+    if let Ok(store) = app.store(STORE_FILE) {
+        let _ = store.set(
+            SETTINGS_KEY,
+            serde_json::to_value(settings).unwrap_or_default(),
+        );
+        let _ = store.save();
+    }
+}
+
 /// Truncate history while preserving grouped (permanent) items.
 /// Returns the list of hashes for images that were removed.
-pub fn truncate_history(history: &mut Vec<Clip>) -> Vec<String> {
+pub fn truncate_history(history: &mut Vec<Clip>, max_history: usize) -> Vec<String> {
     let mut removed_hashes = Vec::new();
+    let max_history = max_history.max(1);
 
     let (mut ungrouped, grouped): (Vec<_>, Vec<_>) = std::mem::take(history)
         .into_iter()
         .partition(|c| c.collection_id.is_none());
 
-    if ungrouped.len() > MAX_HISTORY {
-        let removed = ungrouped.split_off(MAX_HISTORY);
+    if ungrouped.len() > max_history {
+        let removed = ungrouped.split_off(max_history);
         for r in removed {
             if let Some(h) = r.hash {
                 removed_hashes.push(h);
@@ -102,6 +124,15 @@ pub fn truncate_history(history: &mut Vec<Clip>) -> Vec<String> {
     }
 
     removed_hashes
+}
+
+pub fn hash_image_bytes(bytes: &[u8]) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let mut hasher = DefaultHasher::new();
+    bytes.hash(&mut hasher);
+    format!("img_{}", hasher.finish())
 }
 
 pub fn delete_image_file(app: &AppHandle, hash: &str) {

@@ -36,19 +36,29 @@ impl Serialize for ToolError {
 }
 
 impl From<String> for ToolError {
-    fn from(s: String) -> Self { Self::Message(s) }
+    fn from(s: String) -> Self {
+        Self::Message(s)
+    }
 }
 impl From<&str> for ToolError {
-    fn from(s: &str) -> Self { Self::Message(s.to_string()) }
+    fn from(s: &str) -> Self {
+        Self::Message(s.to_string())
+    }
 }
 impl From<std::io::Error> for ToolError {
-    fn from(e: std::io::Error) -> Self { Self::Io(e) }
+    fn from(e: std::io::Error) -> Self {
+        Self::Io(e)
+    }
 }
 impl From<serde_json::Error> for ToolError {
-    fn from(e: serde_json::Error) -> Self { Self::Serde(e) }
+    fn from(e: serde_json::Error) -> Self {
+        Self::Serde(e)
+    }
 }
 impl From<tauri::Error> for ToolError {
-    fn from(e: tauri::Error) -> Self { Self::Tauri(e) }
+    fn from(e: tauri::Error) -> Self {
+        Self::Tauri(e)
+    }
 }
 
 pub type ToolResult<T> = Result<T, ToolError>;

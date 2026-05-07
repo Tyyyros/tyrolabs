@@ -1,26 +1,29 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
-import type { Theme, ThemeId } from "../../types";
+import type { ClipboardSettings, Theme, ThemeId } from "../../types";
 import { THEMES } from "../../themes";
 import { useTheme } from "../../lib/theme";
 import { C, hexToRgba } from "../../lib/colors";
 import { Ic } from "../icons";
 import { WinBtn } from "../layout/WinBtn";
 import { Toggle } from "../ui/Toggle";
-import { Seg } from "../ui/Seg";
 import { AutostartToggle } from "../settings/AutostartToggle";
 
 interface Props {
   onClose: () => void;
   themeName: ThemeId;
   onThemeChange: (id: ThemeId) => void;
-  autoCap: boolean;
-  onAutoCapChange: (v: boolean) => void;
+  clipboardSettings: ClipboardSettings;
+  onClipboardSettingsChange: (settings: ClipboardSettings) => void;
 }
 
-type Lang = "fr" | "en";
-
-export function Settings({ onClose, themeName, onThemeChange, autoCap, onAutoCapChange }: Props) {
+export function Settings({
+  onClose,
+  themeName,
+  onThemeChange,
+  clipboardSettings,
+  onClipboardSettingsChange,
+}: Props) {
   const theme = useTheme();
   const [anim, setAnim] = useState(false);
   const [appVersion, setAppVersion] = useState("...");
@@ -29,9 +32,9 @@ export function Settings({ onClose, themeName, onThemeChange, autoCap, onAutoCap
     getVersion().then(setAppVersion).catch(() => setAppVersion("inconnue"));
   }, []);
 
-  const [lang, setLang] = useState<Lang>("fr");
-  const [notifs, setNotifs] = useState(true);
-  const [maxItems, setMaxItems] = useState(1000);
+  const updateClipboardSetting = (patch: Partial<ClipboardSettings>) => {
+    onClipboardSettingsChange({ ...clipboardSettings, ...patch });
+  };
 
   return (
     <div
@@ -144,26 +147,16 @@ export function Settings({ onClose, themeName, onThemeChange, autoCap, onAutoCap
           <div style={{ height: 1, background: C.border, marginBottom: 16 }} />
 
           {/* Other settings */}
-          <Row label="Langue">
-            <Seg<Lang>
-              value={lang}
-              onChange={setLang}
-              options={[
-                { v: "fr", l: "Français" },
-                { v: "en", l: "English" },
-              ]}
-            />
-          </Row>
           <Row
             label="Mode automatique"
             description="Surveille votre presse-papier et enregistre automatiquement chaque copie."
           >
-            <Toggle value={autoCap} onChange={onAutoCapChange} />
+            <Toggle
+              value={clipboardSettings.capture_enabled}
+              onChange={(value) => updateClipboardSetting({ capture_enabled: value })}
+            />
           </Row>
           <AutostartToggle />
-          <Row label="Notifications">
-            <Toggle value={notifs} onChange={setNotifs} />
-          </Row>
           <Row label="Historique max.">
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <input
@@ -171,8 +164,8 @@ export function Settings({ onClose, themeName, onThemeChange, autoCap, onAutoCap
                 min={100}
                 max={5000}
                 step={100}
-                value={maxItems}
-                onChange={(e) => setMaxItems(+e.target.value)}
+                value={clipboardSettings.max_history}
+                onChange={(e) => updateClipboardSetting({ max_history: +e.target.value })}
                 style={{ width: 90, accentColor: theme.accent }}
               />
               <span
@@ -183,7 +176,7 @@ export function Settings({ onClose, themeName, onThemeChange, autoCap, onAutoCap
                   minWidth: 36,
                 }}
               >
-                {maxItems}
+                {clipboardSettings.max_history}
               </span>
             </div>
           </Row>

@@ -16,6 +16,7 @@ const LABELS: Record<TabId, string> = {
   images: "image",
   links: "lien",
   favs: "favori",
+  notes: "note",
 };
 
 const formatTime = () =>

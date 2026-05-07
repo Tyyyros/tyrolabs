@@ -153,10 +153,7 @@ pub async fn prepare_capture(
         }
     };
 
-    *capture
-        .staging
-        .lock()
-        .expect("capture staging poisoned") = Some(staged.clone());
+    *capture.staging.lock().expect("capture staging poisoned") = Some(staged.clone());
 
     // 4. Repositionner l'overlay sur le moniteur capturé.
     //    On passe par les coords LOGIQUES de Tauri (et non Physical) : c'est le
@@ -229,7 +226,9 @@ pub async fn save_capture_area(
     let rgba = staged
         .image
         .as_ref()
-        .ok_or(ToolError::Message("image staging absente en mémoire".into()))?
+        .ok_or(ToolError::Message(
+            "image staging absente en mémoire".into(),
+        ))?
         .clone();
 
     // Le frontend envoie déjà des coords en pixels **physiques** (dérivées du
@@ -243,8 +242,7 @@ pub async fn save_capture_area(
     let ch = (height as i64).min(img_h - cy).max(1) as u32;
 
     // crop_imm renvoie une SubImage view (zéro copie), to_image() copie juste la zone.
-    let cropped =
-        image::imageops::crop_imm(&*rgba, cx as u32, cy as u32, cw, ch).to_image();
+    let cropped = image::imageops::crop_imm(&*rgba, cx as u32, cy as u32, cw, ch).to_image();
 
     let (date, time) = now_date_time();
     let id = std::time::SystemTime::now()
@@ -281,7 +279,12 @@ pub async fn save_capture_area(
     {
         let mut history = clip_state.clips.lock().expect("clips lock poisoned");
         history.insert(0, clip.clone());
-        let removed = truncate_history(&mut history);
+        let max_history = clip_state
+            .settings
+            .lock()
+            .expect("clipboard settings lock poisoned")
+            .max_history;
+        let removed = truncate_history(&mut history, max_history);
         for h in removed {
             delete_image_file(&app, &h);
         }

@@ -14,7 +14,9 @@ pub const STORE_FILE: &str = "clipboard_history.json";
 /// Migre une clé legacy vers une clé namespacée si nécessaire.
 /// Idempotent : ne fait rien si la clé namespacée existe déjà.
 pub fn migrate_key(app: &AppHandle, legacy: &str, current: &str) {
-    let Ok(store) = app.store(STORE_FILE) else { return };
+    let Ok(store) = app.store(STORE_FILE) else {
+        return;
+    };
     if store.get(current).is_some() {
         return;
     }

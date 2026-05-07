@@ -1,13 +1,15 @@
 use arboard::Clipboard;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use tauri::Emitter;
 use tauri::{AppHandle, Manager};
 
 use crate::error::{ToolError, ToolResult};
-use crate::models::{now_date_time, Clip, Collection};
+use crate::models::{now_date_time, Clip, ClipboardSettings, Collection};
 use crate::tools::clipboard::state::{ClipboardState, SuppressState};
 use crate::tools::clipboard::storage::{
-    delete_image_file, save_collections, save_history, truncate_history, CollectionSilo,
+    delete_image_file, hash_image_bytes, save_collections, save_history, save_settings,
+    truncate_history, CollectionSilo,
 };
 
 /// Helper : prend le verrou du silo demandé sur l'état clipboard.
@@ -53,7 +55,7 @@ fn resolve_image_path(app: &AppHandle, hash: &str) -> ToolResult<PathBuf> {
 #[tauri::command]
 pub fn suppress_next(state: tauri::State<'_, SuppressState>, text: String) {
     let mut guard = state.0.lock().unwrap();
-    *guard = Some(text);
+    guard.text = Some(text);
 }
 
 #[tauri::command]
@@ -72,6 +74,35 @@ pub fn get_history(state: tauri::State<'_, ClipboardState>) -> Vec<Clip> {
 }
 
 #[tauri::command]
+pub fn get_clipboard_settings(state: tauri::State<'_, ClipboardState>) -> ClipboardSettings {
+    state.settings.lock().unwrap().clone()
+}
+
+#[tauri::command]
+pub fn update_clipboard_settings(
+    app: AppHandle,
+    state: tauri::State<'_, ClipboardState>,
+    settings: ClipboardSettings,
+) -> ClipboardSettings {
+    let settings = settings.normalized();
+
+    {
+        let mut guard = state.settings.lock().unwrap();
+        *guard = settings.clone();
+    }
+    save_settings(&app, &settings);
+
+    let mut history = state.clips.lock().unwrap();
+    let removed = truncate_history(&mut history, settings.max_history);
+    for hash in removed {
+        delete_image_file(&app, &hash);
+    }
+    save_history(&app, &history);
+
+    settings
+}
+
+#[tauri::command]
 pub fn toggle_pinned(app: AppHandle, state: tauri::State<'_, ClipboardState>, id: u64) {
     let mut history = state.clips.lock().unwrap();
     if let Some(clip) = history.iter_mut().find(|c| c.id == id) {
@@ -81,38 +112,27 @@ pub fn toggle_pinned(app: AppHandle, state: tauri::State<'_, ClipboardState>, id
 }
 
 #[tauri::command]
-pub fn delete_clip(app: AppHandle, state: tauri::State<'_, ClipboardState>, id: u64) {
-    let mut history = state.clips.lock().unwrap();
-    if let Some(pos) = history.iter().position(|c| c.id == id) {
-        let clip = history.remove(pos);
-        if let Some(hash) = clip.hash {
-            delete_image_file(&app, &hash);
-        }
-    }
-    save_history(&app, &history);
-}
-
-#[tauri::command]
 pub fn delete_clips(app: AppHandle, state: tauri::State<'_, ClipboardState>, ids: Vec<u64>) {
+    let ids: HashSet<u64> = ids.into_iter().collect();
+    let mut removed_hashes = Vec::new();
     let mut history = state.clips.lock().unwrap();
-    for id in ids {
-        if let Some(pos) = history.iter().position(|c| c.id == id) {
-            let clip = history.remove(pos);
-            if let Some(hash) = clip.hash {
-                delete_image_file(&app, &hash);
+    history.retain(|clip| {
+        if ids.contains(&clip.id) {
+            if let Some(hash) = &clip.hash {
+                removed_hashes.push(hash.clone());
             }
+            return false;
         }
+        true
+    });
+    for hash in removed_hashes {
+        delete_image_file(&app, &hash);
     }
     save_history(&app, &history);
 }
 
 #[tauri::command]
-pub fn update_clip(
-    app: AppHandle,
-    state: tauri::State<'_, ClipboardState>,
-    id: u64,
-    text: String,
-) {
+pub fn update_clip(app: AppHandle, state: tauri::State<'_, ClipboardState>, id: u64, text: String) {
     let mut history = state.clips.lock().unwrap();
     if let Some(clip) = history.iter_mut().find(|c| c.id == id) {
         clip.text = text;
@@ -122,7 +142,12 @@ pub fn update_clip(
 
 #[tauri::command]
 pub fn add_manual_clip(app: AppHandle, state: tauri::State<'_, ClipboardState>, text: String) {
+    if text.trim().is_empty() {
+        return;
+    }
+
     let mut history = state.clips.lock().unwrap();
+    let max_history = state.settings.lock().unwrap().max_history;
     let (date, time) = now_date_time();
     let id = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -144,7 +169,10 @@ pub fn add_manual_clip(app: AppHandle, state: tauri::State<'_, ClipboardState>, 
     };
 
     history.insert(0, clip.clone());
-    truncate_history(&mut history);
+    let removed = truncate_history(&mut history, max_history);
+    for hash in removed {
+        delete_image_file(&app, &hash);
+    }
     save_history(&app, &history);
 
     let _ = app.emit("clipboard://new-item", &clip);
@@ -160,19 +188,33 @@ pub fn get_image_path(app: AppHandle, hash: String) -> ToolResult<String> {
 
 /// Copies the actual image bitmap to the system clipboard (not text).
 #[tauri::command]
-pub fn copy_image_to_clipboard(app: AppHandle, hash: String) -> ToolResult<()> {
+pub fn copy_image_to_clipboard(
+    app: AppHandle,
+    suppress: tauri::State<'_, SuppressState>,
+    hash: String,
+) -> ToolResult<()> {
     let file_path = resolve_image_path(&app, &hash)?;
     let img = image::open(&file_path).map_err(|e| e.to_string())?;
     let rgba = img.to_rgba8();
     let (w, h) = (rgba.width() as usize, rgba.height() as usize);
     let bytes = rgba.into_raw();
+    let clipboard_hash = hash_image_bytes(&bytes);
+
+    {
+        let mut guard = suppress.0.lock().unwrap();
+        guard.image_hash = Some(clipboard_hash);
+    }
+
     let img_data = arboard::ImageData {
         width: w,
         height: h,
         bytes: std::borrow::Cow::Owned(bytes),
     };
     let mut cb = Clipboard::new().map_err(|e| e.to_string())?;
-    cb.set_image(img_data).map_err(|e| e.to_string())?;
+    if let Err(e) = cb.set_image(img_data) {
+        suppress.0.lock().unwrap().image_hash = None;
+        return Err(ToolError::Message(e.to_string()));
+    }
     Ok(())
 }
 
@@ -259,58 +301,40 @@ pub fn delete_collection(
 }
 
 #[tauri::command]
-pub fn set_clip_collection(
-    app: AppHandle,
-    state: tauri::State<'_, ClipboardState>,
-    clip_id: u64,
-    collection_id: String,
-    sort_order: i32,
-) {
-    let mut history = state.clips.lock().unwrap();
-    if let Some(clip) = history.iter_mut().find(|c| c.id == clip_id) {
-        clip.collection_id = Some(collection_id);
-        clip.sort_order = sort_order;
-    }
-    save_history(&app, &history);
-}
-
-#[tauri::command]
 pub fn set_clips_collection(
     app: AppHandle,
     state: tauri::State<'_, ClipboardState>,
     clip_ids: Vec<u64>,
     collection_id: String,
-) {
+    silo: String,
+) -> ToolResult<()> {
+    let silo = parse_silo(&silo)?;
+    if !silo_lock(&state, silo)
+        .iter()
+        .any(|c| c.id == collection_id)
+    {
+        return Err(ToolError::NotFound("collection introuvable".into()));
+    }
+
     let mut history = state.clips.lock().unwrap();
+    for cid in &clip_ids {
+        if let Some(clip) = history.iter().find(|c| c.id == *cid) {
+            let clip_is_image = clip.clip_type == "image";
+            let target_is_image = silo == CollectionSilo::Image;
+            if target_is_image != clip_is_image {
+                return Err(ToolError::InvalidInput(
+                    "type de clip incompatible avec la collection".into(),
+                ));
+            }
+        }
+    }
+
     for cid in clip_ids {
         if let Some(clip) = history.iter_mut().find(|c| c.id == cid) {
             clip.collection_id = Some(collection_id.clone());
+            clip.sort_order = 0;
         }
     }
     save_history(&app, &history);
-}
-
-#[tauri::command]
-pub fn ungroup_clip(app: AppHandle, state: tauri::State<'_, ClipboardState>, clip_id: u64) {
-    let mut history = state.clips.lock().unwrap();
-    if let Some(clip) = history.iter_mut().find(|c| c.id == clip_id) {
-        clip.collection_id = None;
-        clip.sort_order = 0;
-    }
-    save_history(&app, &history);
-}
-
-#[tauri::command]
-pub fn reorder_clips_in_collection(
-    app: AppHandle,
-    state: tauri::State<'_, ClipboardState>,
-    clip_ids: Vec<u64>,
-) {
-    let mut history = state.clips.lock().unwrap();
-    for (i, cid) in clip_ids.iter().enumerate() {
-        if let Some(clip) = history.iter_mut().find(|c| c.id == *cid) {
-            clip.sort_order = i as i32;
-        }
-    }
-    save_history(&app, &history);
+    Ok(())
 }
