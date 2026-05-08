@@ -31,9 +31,13 @@ export function useAppShellEvents({ onDismiss, onEscape }: DismissArgs) {
 export function useTauriAppEvents({
   onOpenSettings,
   onCaptureDone,
+  onOcrDone,
+  onOcrError,
 }: {
   onOpenSettings: () => void;
   onCaptureDone: () => void;
+  onOcrDone: (count: number) => void;
+  onOcrError: (kind: "empty" | "failed", message?: string) => void;
 }) {
   useEffect(() => {
     const unlisten = listen("open-settings", onOpenSettings);
@@ -44,6 +48,23 @@ export function useTauriAppEvents({
     const unlisten = listen("capture://done", onCaptureDone);
     return () => { unlisten.then((fn) => fn()); };
   }, [onCaptureDone]);
+
+  useEffect(() => {
+    const unlisten = listen<{ count: number }>("capture://ocr-done", (e) => {
+      onOcrDone(e.payload.count);
+    });
+    return () => { unlisten.then((fn) => fn()); };
+  }, [onOcrDone]);
+
+  useEffect(() => {
+    const unlisten = listen<{ kind: "empty" | "failed"; message?: string }>(
+      "capture://ocr-error",
+      (e) => {
+        onOcrError(e.payload.kind, e.payload.message);
+      },
+    );
+    return () => { unlisten.then((fn) => fn()); };
+  }, [onOcrError]);
 }
 
 export function useCaptureShortcut(onCapture: () => void) {

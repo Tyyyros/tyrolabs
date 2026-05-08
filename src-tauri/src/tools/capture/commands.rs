@@ -7,10 +7,11 @@ use tauri::{AppHandle, Manager};
 
 use crate::error::{ToolError, ToolResult};
 use crate::models::{now_date_time, Clip, WindowRect};
-use crate::tools::capture::state::{CaptureState, MonitorRect, StagedCapture};
+use crate::tools::capture::state::{CaptureMode, CaptureState, MonitorRect, StagedCapture};
 use crate::tools::capture::windows::get_open_windows;
 use crate::tools::clipboard::state::ClipboardState;
 use crate::tools::clipboard::storage::{delete_image_file, save_history, truncate_history};
+use serde::Serialize;
 
 use ::windows::Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap};
 use ::windows::Media::Ocr::OcrEngine;
@@ -67,7 +68,9 @@ fn capture_monitor_to_disk(
 pub async fn prepare_capture(
     app: AppHandle,
     capture: tauri::State<'_, CaptureState>,
+    mode: Option<CaptureMode>,
 ) -> ToolResult<()> {
+    let mode = mode.unwrap_or_default();
     // 1. Identifier le moniteur courant via la fenêtre principale.
     let main = app
         .get_webview_window("main")
@@ -141,6 +144,7 @@ pub async fn prepare_capture(
                 height: msize.height,
                 scale,
             },
+            mode,
             image: Some(Arc::new(rgba)),
         })
     })();
@@ -297,45 +301,67 @@ pub async fn save_capture_area(
     }
 
     let _ = app.emit("clipboard://new-item", &clip);
-    let _ = std::fs::remove_file(&staged.image_path);
+    restore_main_and_cleanup_staging(&app, &staged.image_path);
+    let _ = app.emit_to("main", "capture://done", ());
 
-    // Restaurer la fenêtre principale et notifier le frontend pour qu'il bascule
-    // sur l'onglet Images.
+    Ok(())
+}
+
+fn restore_main_and_cleanup_staging(app: &AppHandle, staging_path: &str) {
+    let _ = std::fs::remove_file(staging_path);
     if let Some(main) = app.get_webview_window("main") {
         let _ = main.unminimize();
         let _ = main.show();
         let _ = main.set_focus();
     }
-    let _ = app.emit_to("main", "capture://done", ());
+}
 
-    Ok(())
+#[derive(Serialize, Clone)]
+struct OcrDonePayload {
+    count: usize,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+enum OcrErrorPayload {
+    Empty,
+    Failed { message: String },
 }
 
 /// Extrait le texte de la zone sélectionnée via Windows.Media.Ocr (natif,
 /// gratuit, multilangue selon les packs installés). Le texte est copié dans
 /// le presse-papier via arboard.
 ///
-/// Pas de consommation du staging : on peut relancer un OCR sur la même
-/// capture si l'utilisateur change la zone. La capture est invalidée
-/// uniquement lors d'un `cancel_capture` ou `save_capture_area`.
+/// Consomme le staging (succès comme échec) : restaure la fenêtre principale
+/// et émet `capture://ocr-done` (succès) ou `capture://ocr-error` (vide ou
+/// échec) vers la fenêtre `main`, qui affiche un toast.
 #[tauri::command]
 pub async fn ocr_capture_area(
+    app: AppHandle,
     capture: tauri::State<'_, CaptureState>,
     x: i32,
     y: i32,
     width: u32,
     height: u32,
-) -> ToolResult<String> {
+) -> ToolResult<()> {
     if width == 0 || height == 0 {
         return Err(ToolError::InvalidInput("dimensions invalides".into()));
     }
-    let rgba = {
-        let guard = capture.staging.lock().expect("capture staging poisoned");
-        guard
-            .as_ref()
-            .and_then(|s| s.image.clone())
-            .ok_or(ToolError::Message("aucune capture préparée".into()))?
-    };
+
+    let staged = capture
+        .staging
+        .lock()
+        .expect("capture staging poisoned")
+        .take()
+        .ok_or(ToolError::Message("aucune capture préparée".into()))?;
+
+    let rgba = staged
+        .image
+        .as_ref()
+        .ok_or(ToolError::Message(
+            "image staging absente en mémoire".into(),
+        ))?
+        .clone();
 
     let img_w = rgba.width() as i64;
     let img_h = rgba.height() as i64;
@@ -345,23 +371,47 @@ pub async fn ocr_capture_area(
     let ch = (height as i64).min(img_h - cy).max(1) as u32;
     let cropped = image::imageops::crop_imm(&*rgba, cx as u32, cy as u32, cw, ch).to_image();
 
-    let text = tauri::async_runtime::spawn_blocking(move || run_winrt_ocr(cropped))
-        .await
-        .map_err(|e| ToolError::Message(format!("ocr join error: {e}")))??;
+    let outcome = tauri::async_runtime::spawn_blocking(move || run_winrt_ocr(cropped)).await;
 
-    if text.trim().is_empty() {
-        return Err(ToolError::NotFound("ocr empty".into()));
+    let result: Result<String, String> = match outcome {
+        Err(join_err) => Err(format!("ocr join error: {join_err}")),
+        Ok(Err(e)) => Err(e.to_string()),
+        Ok(Ok(text)) => Ok(text),
+    };
+
+    restore_main_and_cleanup_staging(&app, &staged.image_path);
+
+    match result {
+        Ok(text) if text.trim().is_empty() => {
+            let _ = app.emit_to("main", "capture://ocr-error", OcrErrorPayload::Empty);
+            Ok(())
+        }
+        Ok(text) => {
+            let count = text.chars().count();
+            let clip_result = arboard::Clipboard::new()
+                .and_then(|mut c| c.set_text(text.clone()).map(|_| ()));
+            if let Err(e) = clip_result {
+                let _ = app.emit_to(
+                    "main",
+                    "capture://ocr-error",
+                    OcrErrorPayload::Failed {
+                        message: format!("clipboard: {e}"),
+                    },
+                );
+                return Ok(());
+            }
+            let _ = app.emit_to("main", "capture://ocr-done", OcrDonePayload { count });
+            Ok(())
+        }
+        Err(message) => {
+            let _ = app.emit_to(
+                "main",
+                "capture://ocr-error",
+                OcrErrorPayload::Failed { message },
+            );
+            Ok(())
+        }
     }
-
-    {
-        let mut clipboard = arboard::Clipboard::new()
-            .map_err(|e| ToolError::Message(format!("clipboard init: {e}")))?;
-        clipboard
-            .set_text(text.clone())
-            .map_err(|e| ToolError::Message(format!("clipboard set: {e}")))?;
-    }
-
-    Ok(text)
 }
 
 fn run_winrt_ocr(rgba: image::RgbaImage) -> ToolResult<String> {

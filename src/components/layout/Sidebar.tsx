@@ -286,10 +286,19 @@ interface Props {
   onSettings: () => void;
   onSystem: () => void;
   onCapture: () => void;
+  onOcrCapture: () => void;
   capturePulse: number;
 }
 
-export function Sidebar({ activeTab, onTab, onSettings, onSystem, onCapture, capturePulse }: Props) {
+export function Sidebar({
+  activeTab,
+  onTab,
+  onSettings,
+  onSystem,
+  onCapture,
+  onOcrCapture,
+  capturePulse,
+}: Props) {
   const { t } = useI18n();
   return (
     <div
@@ -322,6 +331,7 @@ export function Sidebar({ activeTab, onTab, onSettings, onSystem, onCapture, cap
       </div>
       <div style={{ borderTop: `1px solid ${C.border}`, paddingBottom: 4, paddingTop: 4 }}>
         <CaptureBtn onCapture={onCapture} pulse={capturePulse} />
+        <SbBtn Icon={Ic.ScanText} label={t("nav.capture.ocr")} onClick={onOcrCapture} />
         <SbBtn Icon={Ic.Settings} label={t("nav.settings")} onClick={onSettings} />
         <SbBtn Icon={Ic.Cpu} label={t("nav.system")} onClick={onSystem} />
       </div>

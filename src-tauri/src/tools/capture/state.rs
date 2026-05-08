@@ -7,8 +7,16 @@
 
 use crate::models::WindowRect;
 use image::RgbaImage;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum CaptureMode {
+    #[default]
+    Image,
+    Ocr,
+}
 
 #[derive(Clone, Serialize)]
 pub struct MonitorRect {
@@ -26,6 +34,8 @@ pub struct StagedCapture {
     /// Fenêtres en **coordonnées locales** au moniteur capturé, en z-order top-first.
     pub windows: Vec<WindowRect>,
     pub monitor: MonitorRect,
+    /// Mode déclenché côté sidebar : `image` → `save_capture_area`, `ocr` → `ocr_capture_area`.
+    pub mode: CaptureMode,
     /// Image RGBA en mémoire pour découpage rapide dans `save_capture_area`
     /// (évite un re-décodage PNG depuis le disque). Non sérialisé vers le frontend.
     #[serde(skip)]

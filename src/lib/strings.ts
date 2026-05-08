@@ -20,6 +20,7 @@ export const STRINGS = {
     "nav.capture": "Capture d'écran (Alt+C)",
     "nav.capture.normal": "Capture normale",
     "nav.capture.delayed": "Différée (5s)",
+    "nav.capture.ocr": "Capture OCR",
 
     // TitleBar
     "titlebar.pin": "Toujours au premier plan",
@@ -81,11 +82,6 @@ export const STRINGS = {
     "sys.disk.template": "{name} : {free} libre / {total}",
 
     // Capture overlay
-    "capture.tip": "Glissez pour sélectionner — Échap pour annuler",
-    "capture.button.copy": "Copier",
-    "capture.button.ocr": "OCR",
-    "capture.button.cancel": "Annuler",
-    "capture.ocr.loading": "Extraction du texte…",
     "capture.ocr.success": "Texte copié ({count} caractères) ✓",
     "capture.ocr.empty": "Aucun texte détecté",
     "capture.ocr.failed": "Erreur OCR : {error}",
@@ -245,6 +241,7 @@ export const STRINGS = {
     "nav.capture": "Screen capture (Alt+C)",
     "nav.capture.normal": "Normal capture",
     "nav.capture.delayed": "Delayed (5s)",
+    "nav.capture.ocr": "OCR capture",
 
     // TitleBar
     "titlebar.pin": "Always on top",
@@ -306,11 +303,6 @@ export const STRINGS = {
     "sys.disk.template": "{name}: {free} free / {total}",
 
     // Capture overlay
-    "capture.tip": "Drag to select — Esc to cancel",
-    "capture.button.copy": "Copy",
-    "capture.button.ocr": "OCR",
-    "capture.button.cancel": "Cancel",
-    "capture.ocr.loading": "Extracting text…",
     "capture.ocr.success": "Text copied ({count} chars) ✓",
     "capture.ocr.empty": "No text detected",
     "capture.ocr.failed": "OCR error: {error}",

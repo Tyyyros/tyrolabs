@@ -166,10 +166,30 @@ export default function App() {
   useTauriAppEvents({
     onOpenSettings: useCallback(() => setSettOpen(true), []),
     onCaptureDone: useCallback(() => setActiveTab("images"), []),
+    onOcrDone: useCallback(
+      (count: number) => fire(t("capture.ocr.success", { count })),
+      [fire, t],
+    ),
+    onOcrError: useCallback(
+      (kind: "empty" | "failed", message?: string) => {
+        if (kind === "empty") {
+          fire(t("capture.ocr.empty"));
+        } else {
+          fire(t("capture.ocr.failed", { error: message ?? "" }));
+        }
+      },
+      [fire, t],
+    ),
   });
 
   const handleCapture = useCallback(() => {
-    invoke("prepare_capture").catch((error) => {
+    invoke("prepare_capture", { mode: "image" }).catch((error) => {
+      console.error(error);
+      fire(t("capture.prepare.failed"));
+    });
+  }, [fire, t]);
+  const handleOcrCapture = useCallback(() => {
+    invoke("prepare_capture", { mode: "ocr" }).catch((error) => {
       console.error(error);
       fire(t("capture.prepare.failed"));
     });
@@ -397,6 +417,7 @@ export default function App() {
             onSettings={() => setSettOpen(true)}
             onSystem={() => setSysOpen(true)}
             onCapture={handleCapture}
+            onOcrCapture={handleOcrCapture}
             capturePulse={capturePulse}
           />
           <main style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column", minWidth: 0, background: "var(--bg)" }}>

@@ -66,6 +66,17 @@ export const Ic = {
       <circle cx="12" cy="13" r="4" />
     </>,
   ),
+  ScanText: mkSvg(
+    <>
+      <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+      <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+      <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+      <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+      <line x1="7" y1="9" x2="17" y2="9" />
+      <line x1="7" y1="13" x2="17" y2="13" />
+      <line x1="7" y1="17" x2="13" y2="17" />
+    </>,
+  ),
   Settings: mkSvg(
     <>
       <circle cx="12" cy="12" r="3" />
