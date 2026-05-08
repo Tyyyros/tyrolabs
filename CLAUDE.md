@@ -92,7 +92,7 @@ TyroLabs_V2/
         │   ├── system.rs                # diagnostics OS + IP/MAC/DNS/GPU/Java/processes
         │   └── tray.rs                  # tray menu
         └── tools/
-            ├── capture/                 # capture d'écran + ocr_capture_area (Windows.Media.Ocr)
+            ├── capture/                 # capture d'écran (mode image|ocr piloté par la sidebar) + ocr_capture_area (Windows.Media.Ocr)
             ├── clipboard/               # historique + collections (3 silos)
             ├── notes/                   # CRUD notes + collections + médias + export
             │   ├── mod.rs
@@ -157,7 +157,7 @@ Pas de dispatcher central qui grossit. Pour un nouvel outil `<nom>` :
 |-----------|--------------|-------------------------------|-------------------------------------------------|
 | clipboard | ✅ livré     | `src-tauri/src/tools/clipboard/` | `src/components/tabs/{Text,Images,Links}Tab.tsx` |
 | notes     | ✅ livré     | `src-tauri/src/tools/notes/`     | `src/components/tools/notes/NotesPanel.tsx`     |
-| capture   | ✅ livré     | `src-tauri/src/tools/capture/`   | webview dédiée `/capture` (boutons Image / OCR) |
+| capture   | ✅ livré     | `src-tauri/src/tools/capture/`   | 2 boutons sidebar dédiés (Camera + ScanText) → webview `/capture` selon `mode` |
 | password  | ✅ livré     | `src-tauri/src/tools/password/`  | `src/components/tools/password/PasswordPanel.tsx` |
 
 L'onglet **Favoris** a été retiré — la fonction `pin` est conservée et fait

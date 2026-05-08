@@ -168,9 +168,14 @@ TyroLabs_V2/
 - Collections are supported with drag and drop and persisted by the backend.
 - A Password generator tool ships its own tab (random charset and passphrase
   modes, strength meter via `zxcvbn`).
-- The capture overlay supports two modes — "Image" (default, saves to clipboard
-  history) and "OCR" (extracts text via `Windows.Media.Ocr` and copies it to
-  the system clipboard via `arboard`).
+- Screen capture exposes two **distinct sidebar buttons**: a Camera button
+  (with a chevron menu for normal / 5s-delayed image captures, default
+  shortcut `Alt+C`) and a dedicated OCR button. The mode (`image` / `ocr`)
+  is passed to `prepare_capture` at trigger time and consumed by the
+  overlay; the overlay no longer renders a mode toggle. OCR completes via
+  `Windows.Media.Ocr`, copies the text via `arboard`, restores the main
+  window and emits `capture://ocr-done` / `capture://ocr-error` for toast
+  feedback.
 - The System drawer shows full diagnostics (network / system / hardware /
   runtimes / processes), with per-line copy buttons and per-process kill.
   The `SYS_INFO` overtitle has been removed.

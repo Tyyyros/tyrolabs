@@ -11,9 +11,11 @@ TypeScript and Vite 7.
 - Password generator tool: random charset mode (length, classes, custom chars,
   ambiguous-char filter) and passphrase mode (EFF-style wordlist, separator,
   digits, symbol). Strength meter via `zxcvbn`.
-- Screen capture overlay with **Image** and **OCR** modes. OCR uses
-  `Windows.Media.Ocr` to extract text from the selected region and copy it to
-  the clipboard.
+- Screen capture with two **dedicated sidebar buttons**: regular image
+  capture (with normal / 5s-delayed sub-modes) and **OCR capture** that
+  extracts text from the selected region via `Windows.Media.Ocr` and drops
+  it into the clipboard. Mode is decided at trigger time — the overlay has
+  no UI of its own beyond the selection rectangle.
 - System info drawer with full diagnostics: hostname, local IPs, public IP
   (lazy), MAC addresses, DNS servers, OS, CPU, RAM, disks, GPU + driver,
   installed Java versions, top processes (with kill).
