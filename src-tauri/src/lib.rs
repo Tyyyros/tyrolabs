@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 use tauri::{Manager, PhysicalPosition, WindowEvent};
 use tauri_plugin_autostart::ManagerExt;
 
+use crate::services::app_settings;
 use crate::services::system;
 use crate::services::tray;
 use crate::tools::capture::{self, CaptureState};
@@ -16,6 +17,7 @@ use crate::tools::clipboard::storage::{
 use crate::tools::clipboard::{self, ClipboardState, SuppressNext, SuppressState};
 use crate::tools::notes::storage::{load_note_collections, load_notes};
 use crate::tools::notes::{self, NotesState};
+use crate::tools::password;
 
 const AUTOSTART_ARG: &str = "--autostart";
 
@@ -46,6 +48,12 @@ pub fn run() {
             system::open_file_or_url,
             system::open_in_paint,
             system::get_system_info,
+            system::get_public_ip,
+            system::list_top_processes,
+            system::kill_process,
+            // services/app_settings : préférences transverses (langue)
+            app_settings::get_app_settings,
+            app_settings::set_app_settings,
             // tools/clipboard
             clipboard::get_history,
             clipboard::get_clipboard_settings,
@@ -68,6 +76,7 @@ pub fn run() {
             capture::get_capture_data,
             capture::cancel_capture,
             capture::save_capture_area,
+            capture::ocr_capture_area,
             // tools/notes
             notes::get_notes,
             notes::create_note,
@@ -82,6 +91,9 @@ pub fn run() {
             notes::get_note_asset_path,
             notes::export_note_markdown,
             notes::write_note_to_file,
+            // tools/password
+            password::generate_password,
+            password::generate_passphrase,
         ])
         .setup(move |app| {
             // Load initial data into memory

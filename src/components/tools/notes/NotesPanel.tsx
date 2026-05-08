@@ -4,6 +4,7 @@ import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import type { NotesStore } from "../../../hooks/useNotesStore";
 import { useNotesViews } from "../../../hooks/useNotesViews";
 import { tipTapToMarkdown } from "../../../lib/notes-conversion";
+import { useI18n } from "../../../lib/i18n";
 import { CreateCollectionModal } from "../../groups/CreateCollectionModal";
 import { NotesSidebar } from "./NotesSidebar";
 import { NotesDashboard } from "./NotesDashboard";
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function NotesPanel({ store, search, fire }: Props) {
+  const { t } = useI18n();
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null);
   const [activeTags, setActiveTags] = useState<string[]>([]);
   const [openNoteId, setOpenNoteId] = useState<string | null>(null);
@@ -42,39 +44,39 @@ export function NotesPanel({ store, search, fire }: Props) {
   const handleCreate = useCallback(async () => {
     try {
       const note = await store.createNote({
-        title: "Sans titre",
+        title: t("notes.untitled"),
         format: "richtext",
         collection_id: activeCollectionId ?? null,
       });
       setOpenNoteId(note.id);
     } catch (e) {
       console.error("[create_note] failed:", e);
-      fire("Erreur lors de la création");
+      fire(t("notes.create.failed"));
     }
-  }, [store, activeCollectionId, fire]);
+  }, [store, activeCollectionId, fire, t]);
 
   const handleDelete = useCallback(
     async (id: string) => {
       try {
         await store.deleteNote(id);
         if (openNoteId === id) setOpenNoteId(null);
-        fire("Note supprimée ✓");
+        fire(t("notes.deleted"));
       } catch (e) {
         console.error("[delete_note] failed:", e);
-        fire("Erreur lors de la suppression");
+        fire(t("toast.delete.failed"));
       }
     },
-    [store, openNoteId, fire],
+    [store, openNoteId, fire, t],
   );
 
   const handleRename = useCallback(
     (id: string, title: string) => {
       store.updateNote(id, { title }).catch((e) => {
         console.error("[update_note] failed:", e);
-        fire("Erreur lors du renommage");
+        fire(t("notes.rename.failed"));
       });
     },
-    [store, fire],
+    [store, fire, t],
   );
 
   const handleTogglePin = useCallback(
@@ -103,13 +105,13 @@ export function NotesPanel({ store, search, fire }: Props) {
           content = tipTapToMarkdown(content);
         }
         await store.writeFile(path, content);
-        fire("Note exportée ✓");
+        fire(t("notes.exported"));
       } catch (e) {
         console.error("[export_note_markdown] failed:", e);
-        fire("Erreur lors de l'export");
+        fire(t("notes.export.failed"));
       }
     },
-    [store, fire],
+    [store, fire, t],
   );
 
   const handleEditorChange = useCallback(
@@ -127,13 +129,13 @@ export function NotesPanel({ store, search, fire }: Props) {
       try {
         const collection = await store.createCollection({ name, icon, color });
         setActiveCollectionId(collection.id);
-        fire("Collection créée ✓");
+        fire(t("notes.collection.created"));
       } catch (e) {
         console.error("[create_note_collection] failed:", e);
-        fire("Erreur lors de la création");
+        fire(t("notes.create.failed"));
       }
     },
-    [store, fire],
+    [store, fire, t],
   );
 
   const handleDeleteCollection = useCallback(
@@ -141,13 +143,13 @@ export function NotesPanel({ store, search, fire }: Props) {
       try {
         await store.deleteCollection(id);
         if (activeCollectionId === id) setActiveCollectionId(null);
-        fire("Collection supprimée ✓");
+        fire(t("notes.collection.deleted"));
       } catch (e) {
         console.error("[delete_note_collection] failed:", e);
-        fire("Erreur lors de la suppression");
+        fire(t("toast.delete.failed"));
       }
     },
-    [store, activeCollectionId, fire],
+    [store, activeCollectionId, fire, t],
   );
 
   const handleRenameCollection = useCallback(
@@ -210,8 +212,8 @@ export function NotesPanel({ store, search, fire }: Props) {
             onExport={handleExport}
             emptyHint={
               activeCollectionId || activeTags.length || search
-                ? "Aucune note ne correspond à ces filtres"
-                : "Aucune note"
+                ? t("notes.empty.filtered")
+                : t("notes.empty.title")
             }
           />
         )}

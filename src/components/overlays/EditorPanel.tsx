@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { AnyClip, ItemType } from "../../types";
 import { useTheme } from "../../lib/theme";
+import { useI18n } from "../../lib/i18n";
 import { C } from "../../lib/colors";
 import { Ic } from "../icons";
 import { WinBtn } from "../layout/WinBtn";
@@ -16,6 +17,7 @@ interface Props {
 
 export function EditorPanel({ item, itemType, onSave, onClose }: Props) {
   const theme = useTheme();
+  const { t } = useI18n();
   const initial = item.text || "";
   const [text, setText] = useState(initial);
   const [anim, setAnim] = useState(false);
@@ -53,9 +55,9 @@ export function EditorPanel({ item, itemType, onSave, onClose }: Props) {
           }}
         >
           <span style={{ fontSize: 13, fontWeight: 600 }}>
-            {itemType === "image" ? "Renommer l'image" : itemType === "link" ? "Éditer le lien" : "Éditer le texte"}
+            {itemType === "image" ? t("editor.title.image") : itemType === "link" ? t("editor.title.link") : t("editor.title.text")}
           </span>
-          <WinBtn onClick={onClose} title="Fermer">
+          <WinBtn onClick={onClose} title={t("common.close")}>
             <Ic.X width={16} height={16} strokeWidth={theme.iconStroke} />
           </WinBtn>
         </div>
@@ -83,7 +85,7 @@ export function EditorPanel({ item, itemType, onSave, onClose }: Props) {
             <div style={{ display: "flex", gap: 4 }}>
               <button
                 onClick={handleClean}
-                title="Nettoyer le formatage (enlève les lignes vides)"
+                title={t("editor.tool.clean")}
                 style={{
                   padding: "6px 8px",
                   background: "transparent",
@@ -101,7 +103,7 @@ export function EditorPanel({ item, itemType, onSave, onClose }: Props) {
               </button>
               <button
                 onClick={handleUpper}
-                title="Majuscules"
+                title={t("editor.tool.upper")}
                 style={{
                   padding: "6px 8px",
                   background: "transparent",
@@ -119,7 +121,7 @@ export function EditorPanel({ item, itemType, onSave, onClose }: Props) {
               </button>
               <button
                 onClick={handleLower}
-                title="Minuscules"
+                title={t("editor.tool.lower")}
                 style={{
                   padding: "6px 8px",
                   background: "transparent",
@@ -137,7 +139,7 @@ export function EditorPanel({ item, itemType, onSave, onClose }: Props) {
               </button>
               <button
                 onClick={handleTrim}
-                title="Supprimer les espaces multiples"
+                title={t("editor.tool.trim")}
                 style={{
                   padding: "6px 8px",
                   background: "transparent",
@@ -168,7 +170,7 @@ export function EditorPanel({ item, itemType, onSave, onClose }: Props) {
                   fontSize: 12,
                 }}
               >
-                Annuler
+                {t("editor.cancel")}
               </button>
               {itemType !== "image" && (
                 <button
@@ -187,7 +189,7 @@ export function EditorPanel({ item, itemType, onSave, onClose }: Props) {
                     fontWeight: 500,
                   }}
                 >
-                  Enregistrer et Copier
+                  {t("editor.save.copy")}
                 </button>
               )}
               <button
@@ -206,7 +208,7 @@ export function EditorPanel({ item, itemType, onSave, onClose }: Props) {
                   fontWeight: 500,
                 }}
               >
-                Enregistrer
+                {t("editor.save")}
               </button>
             </div>
           </div>

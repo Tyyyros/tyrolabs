@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { C } from "../../lib/colors";
 import { useTheme } from "../../lib/theme";
+import { useI18n } from "../../lib/i18n";
+import type { StringKey } from "../../lib/strings";
 import { Ic } from "../icons";
 import type { CollectionSilo } from "../../types";
 
-const SILO_LABEL: Record<CollectionSilo, string> = {
-  text: "Texte",
-  image: "Images",
-  link: "Liens",
+const SILO_LABEL_KEY: Record<CollectionSilo, StringKey> = {
+  text: "collections.silo.text",
+  image: "collections.silo.image",
+  link: "collections.silo.link",
 };
 
 const PRESET_COLORS = [
@@ -32,6 +34,7 @@ export function CreateCollectionModal({
   onCreate: (name: string, icon: string, color: string) => void;
 }) {
   const theme = useTheme();
+  const { t } = useI18n();
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("📁");
   const [color, setColor] = useState("#3B82F6");
@@ -97,7 +100,7 @@ export function CreateCollectionModal({
             }}
           >
             <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: C.t1 }}>
-              Nouvelle collection
+              {t("collections.create.title")}
               {silo && (
                 <span
                   style={{
@@ -109,7 +112,7 @@ export function CreateCollectionModal({
                     letterSpacing: "0.02em",
                   }}
                 >
-                  — {SILO_LABEL[silo]}
+                  — {t(SILO_LABEL_KEY[silo])}
                 </span>
               )}
             </h2>
@@ -132,12 +135,12 @@ export function CreateCollectionModal({
           <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
             {/* Name */}
             <div>
-              <label style={{ fontSize: 11, color: C.t2, marginBottom: 5, display: "block" }}>Nom</label>
+              <label style={{ fontSize: 11, color: C.t2, marginBottom: 5, display: "block" }}>{t("collections.create.name")}</label>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoFocus
-                placeholder="Nom de la collection..."
+                placeholder={t("collections.create.name.placeholder")}
                 onKeyDown={(e) => e.key === "Enter" && handleCreate()}
                 style={{
                   width: "100%",
@@ -157,7 +160,7 @@ export function CreateCollectionModal({
 
             {/* Icon */}
             <div>
-              <label style={{ fontSize: 11, color: C.t2, marginBottom: 5, display: "block" }}>Icône</label>
+              <label style={{ fontSize: 11, color: C.t2, marginBottom: 5, display: "block" }}>{t("collections.create.icon")}</label>
               <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                 {PRESET_ICONS.map((ic) => (
                   <button
@@ -185,7 +188,7 @@ export function CreateCollectionModal({
 
             {/* Color */}
             <div>
-              <label style={{ fontSize: 11, color: C.t2, marginBottom: 5, display: "block" }}>Couleur</label>
+              <label style={{ fontSize: 11, color: C.t2, marginBottom: 5, display: "block" }}>{t("collections.create.color")}</label>
               <div style={{ display: "flex", gap: 6 }}>
                 {PRESET_COLORS.map((c) => (
                   <button
@@ -220,7 +223,7 @@ export function CreateCollectionModal({
             >
               <span style={{ fontSize: 16 }}>{icon}</span>
               <span style={{ fontSize: 12, color: C.t1, fontFamily: theme.fontUI }}>
-                {name || "Aperçu"}
+                {name || t("collections.create.preview")}
               </span>
             </div>
           </div>
@@ -239,7 +242,7 @@ export function CreateCollectionModal({
                 fontSize: 13,
               }}
             >
-              Annuler
+              {t("collections.create.cancel")}
             </button>
             <button
               onClick={handleCreate}
@@ -256,7 +259,7 @@ export function CreateCollectionModal({
                 transition: "background 0.2s",
               }}
             >
-              Créer la collection
+              {t("collections.create.confirm")}
             </button>
           </div>
         </div>

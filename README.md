@@ -5,16 +5,25 @@ TypeScript and Vite 7.
 
 ## Features
 
-- Clipboard history for text, code-like snippets, links and images.
-- Text, links, images and favorites views.
+- Clipboard history for text, code-like snippets, links and images. Pinned
+  items float to the top of their tab (no separate "Favorites" tab).
 - Notes module with a Rich Text block editor (slash menu, floating toolbar), bento dashboard, tags, full-text search, per-note collections, and Markdown export.
+- Password generator tool: random charset mode (length, classes, custom chars,
+  ambiguous-char filter) and passphrase mode (EFF-style wordlist, separator,
+  digits, symbol). Strength meter via `zxcvbn`.
+- Screen capture overlay with **Image** and **OCR** modes. OCR uses
+  `Windows.Media.Ocr` to extract text from the selected region and copy it to
+  the clipboard.
+- System info drawer with full diagnostics: hostname, local IPs, public IP
+  (lazy), MAC addresses, DNS servers, OS, CPU, RAM, disks, GPU + driver,
+  installed Java versions, top processes (with kill).
+- Bilingual interface: full FR/EN i18n with the language toggle in Settings.
 - Collections with drag and drop through `@dnd-kit/core` (clipboard silos and notes silo).
 - In-memory Rust state synchronized to a JSON store to avoid repeated disk reads.
 - Persisted clipboard settings for automatic capture and history limits.
 - Image clipboard support with files stored under the app data directory and served through Tauri's `asset://` protocol.
 - Inline image paste / drop in notes, persisted under `notes_assets/` and garbage collected when notes change or are deleted.
 - Automatic cleanup for image files removed from history or truncated by history limits.
-- Screen capture overlay backed by Rust commands and a dedicated `/capture` webview.
 - Markdown export through the Tauri save dialog.
 - Windows startup launch control through the official Tauri autostart plugin.
 - Custom title bar, tray integration and system info drawer.
@@ -35,6 +44,10 @@ TypeScript and Vite 7.
 | Notes Markdown export | `tiptap-markdown` (TipTap JSON → Markdown for `.md` export only) |
 | Save dialog | `tauri-plugin-dialog`, `@tauri-apps/plugin-dialog` |
 | Startup integration | `tauri-plugin-autostart`, `@tauri-apps/plugin-autostart` |
+| OCR | `windows` (features `Media_Ocr` + `Graphics_Imaging` + `Security_Cryptography`) + `windows-future` |
+| Password generator | `rand`, `zxcvbn`, embedded EFF-style wordlist |
+| System diagnostics | `sysinfo`, `local-ip-address`, `ipconfig`/`wmic` parsing |
+| i18n | In-house `useI18n()` hook + `STRINGS` dictionary (`src/lib/i18n.tsx`, `src/lib/strings.ts`) |
 
 ## Requirements
 
@@ -117,10 +130,14 @@ tyrolabs/
 |   |   +-- useNotesStore.ts
 |   |   +-- useNotesViews.ts
 |   |   +-- useToast.ts
+|   +-- components/tools/password/
+|   |   +-- PasswordPanel.tsx
 |   +-- lib/
 |       +-- clips.ts
 |       +-- clipboard-store.ts
 |       +-- colors.ts
+|       +-- i18n.tsx
+|       +-- strings.ts
 |       +-- image-assets.ts
 |       +-- note-assets.ts
 |       +-- notes-conversion.ts
@@ -132,6 +149,7 @@ tyrolabs/
 |   |   +-- main.rs
 |   |   +-- models.rs
 |   |   +-- services/
+|   |   |   +-- app_settings.rs
 |   |   |   +-- store.rs
 |   |   |   +-- system.rs
 |   |   |   +-- tray.rs
@@ -139,6 +157,7 @@ tyrolabs/
 |   |       +-- capture/
 |   |       +-- clipboard/
 |   |       +-- notes/
+|   |       +-- password/
 |   +-- capabilities/
 |   |   +-- autostart.json
 |   |   +-- default.json

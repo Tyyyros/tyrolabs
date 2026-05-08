@@ -2,6 +2,7 @@
 //! Pas de logique métier — uniquement de l'infrastructure
 //! (persistance, system tray, primitives OS, etc.).
 
+pub mod app_settings;
 pub mod store;
 pub mod system;
 pub mod tray;

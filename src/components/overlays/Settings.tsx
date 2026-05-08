@@ -3,6 +3,8 @@ import { getVersion } from "@tauri-apps/api/app";
 import type { ClipboardSettings, Theme, ThemeId } from "../../types";
 import { THEMES } from "../../themes";
 import { useTheme } from "../../lib/theme";
+import { useI18n } from "../../lib/i18n";
+import type { Lang } from "../../lib/strings";
 import { C, hexToRgba } from "../../lib/colors";
 import { Ic } from "../icons";
 import { WinBtn } from "../layout/WinBtn";
@@ -25,12 +27,13 @@ export function Settings({
   onClipboardSettingsChange,
 }: Props) {
   const theme = useTheme();
+  const { t, lang, setLang } = useI18n();
   const [anim, setAnim] = useState(false);
   const [appVersion, setAppVersion] = useState("...");
   useEffect(() => {
     requestAnimationFrame(() => setAnim(true));
-    getVersion().then(setAppVersion).catch(() => setAppVersion("inconnue"));
-  }, []);
+    getVersion().then(setAppVersion).catch(() => setAppVersion(t("common.unknown")));
+  }, [t]);
 
   const updateClipboardSetting = (patch: Partial<ClipboardSettings>) => {
     onClipboardSettingsChange({ ...clipboardSettings, ...patch });
@@ -74,8 +77,8 @@ export function Settings({
             background: "var(--sidebar)",
           }}
         >
-          <span style={{ fontSize: 14, fontWeight: 600 }}>Réglages</span>
-          <WinBtn onClick={onClose} title="Fermer">
+          <span style={{ fontSize: 14, fontWeight: 600 }}>{t("settings.title")}</span>
+          <WinBtn onClick={onClose} title={t("common.close")}>
             <Ic.X width={16} height={16} strokeWidth={theme.iconStroke} />
           </WinBtn>
         </div>
@@ -104,15 +107,15 @@ export function Settings({
               }}
             >
               <Ic.Palette width={13} height={13} strokeWidth={theme.iconStroke} />
-              <span>THÈMES SOMBRES</span>
+              <span>{t("settings.themes.dark")}</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8 }}>
-              {Object.values(THEMES).filter(t => !t.light).map((t) => (
+              {Object.values(THEMES).filter(th => !th.light).map((th) => (
                 <ThemeCard
-                  key={t.id}
-                  t={t}
-                  active={themeName === t.id}
-                  onClick={() => onThemeChange(t.id as ThemeId)}
+                  key={th.id}
+                  t={th}
+                  active={themeName === th.id}
+                  onClick={() => onThemeChange(th.id as ThemeId)}
                 />
               ))}
             </div>
@@ -130,15 +133,15 @@ export function Settings({
               }}
             >
               <Ic.Palette width={13} height={13} strokeWidth={theme.iconStroke} />
-              <span>THÈMES CLAIRS</span>
+              <span>{t("settings.themes.light")}</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8 }}>
-              {Object.values(THEMES).filter(t => t.light).map((t) => (
+              {Object.values(THEMES).filter(th => th.light).map((th) => (
                 <ThemeCard
-                  key={t.id}
-                  t={t}
-                  active={themeName === t.id}
-                  onClick={() => onThemeChange(t.id as ThemeId)}
+                  key={th.id}
+                  t={th}
+                  active={themeName === th.id}
+                  onClick={() => onThemeChange(th.id as ThemeId)}
                 />
               ))}
             </div>
@@ -146,10 +149,15 @@ export function Settings({
 
           <div style={{ height: 1, background: C.border, marginBottom: 16 }} />
 
+          {/* Language */}
+          <Row label={t("settings.language")} description={t("settings.language.desc")}>
+            <LanguagePicker lang={lang} onChange={setLang} />
+          </Row>
+
           {/* Other settings */}
           <Row
-            label="Mode automatique"
-            description="Surveille votre presse-papier et enregistre automatiquement chaque copie."
+            label={t("settings.capture.label")}
+            description={t("settings.capture.desc")}
           >
             <Toggle
               value={clipboardSettings.capture_enabled}
@@ -157,7 +165,7 @@ export function Settings({
             />
           </Row>
           <AutostartToggle />
-          <Row label="Historique max.">
+          <Row label={t("settings.history.label")}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <input
                 type="range"
@@ -183,12 +191,12 @@ export function Settings({
 
           <div style={{ marginTop: 20 }}>
             <div style={{ fontSize: 11, color: C.t2, fontFamily: theme.fontMono }}>
-              TyroLabs V{appVersion}
+              {t("settings.app.version", { version: appVersion })}
             </div>
             <div
               style={{ fontSize: 10.5, color: C.t3, fontFamily: theme.fontMono, marginTop: 4 }}
             >
-              © 2026 TyroLabs. Tous droits réservés.
+              {t("settings.copyright")}
             </div>
           </div>
         </div>
@@ -232,6 +240,38 @@ function Row({
         )}
       </div>
       <div style={{ flexShrink: 0, paddingTop: description ? 1 : 0 }}>{children}</div>
+    </div>
+  );
+}
+
+function LanguagePicker({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => void }) {
+  const { t } = useI18n();
+  const theme = useTheme();
+  const Btn = ({ value, label }: { value: Lang; label: string }) => {
+    const active = lang === value;
+    return (
+      <button
+        onClick={() => onChange(value)}
+        style={{
+          padding: "6px 14px",
+          fontSize: 12,
+          fontFamily: theme.fontUI,
+          background: active ? hexToRgba(theme.accent, 0.16) : "transparent",
+          border: `1px solid ${active ? theme.accent : C.border}`,
+          borderRadius: 6,
+          color: active ? theme.accent : C.t1,
+          cursor: "pointer",
+          transition: "all 0.12s",
+        }}
+      >
+        {label}
+      </button>
+    );
+  };
+  return (
+    <div style={{ display: "flex", gap: 6 }}>
+      <Btn value="fr" label={t("settings.language.fr")} />
+      <Btn value="en" label={t("settings.language.en")} />
     </div>
   );
 }

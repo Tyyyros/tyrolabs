@@ -13,6 +13,8 @@ un handler Tauri unique côté backend et par un onglet/registre côté frontend
 - **Styles inline + tokens de thème** via CSS variables (pas de Tailwind, pas
   de framework CSS — tout passe par `useTheme()` et `C` dans
   `src/lib/colors.ts`)
+- **i18n FR/EN** maison via `src/lib/i18n.tsx` + dico `src/lib/strings.ts` ;
+  langue persistée via `services/app_settings.rs` (clé store `app.settings`)
 - **Icônes locales SVG** dans `src/components/icons.tsx` (`Ic.*`)
 - `@dnd-kit/core` pour le drag & drop
 - **TipTap 2** pour l'éditeur RTE des Notes (seul éditeur, pas de mode Markdown)
@@ -20,6 +22,10 @@ un handler Tauri unique côté backend et par un onglet/registre côté frontend
 - `tauri-plugin-store` pour la persistance JSON partagée
 - `tauri-plugin-dialog` pour le save dialog (export `.md`)
 - `tauri-plugin-autostart` pour le lancement Windows
+- **Windows.Media.Ocr** (via `windows-rs` features `Media_Ocr` + `Graphics_Imaging`,
+  bloquage via `windows-future::AsyncStatus`) pour l'OCR du tool Capture
+- `zxcvbn` + `rand` + wordlist embarquée pour le tool Password generator
+- `local-ip-address` + parsing `ipconfig` / `wmic` pour les diagnostics système
 
 ## Structure de dossiers
 
@@ -62,6 +68,8 @@ TyroLabs_V2/
 │   │   ├── clipboard-store.ts           # IPC bridge clipboard
 │   │   ├── colors.ts                    # tokens C.*
 │   │   ├── theme.tsx                    # ThemeProvider + useTheme()
+│   │   ├── i18n.tsx                     # I18nProvider + useI18n() + persistance
+│   │   ├── strings.ts                   # dico FR / EN
 │   │   ├── image-assets.ts              # cache hash → asset:// (clipboard)
 │   │   ├── note-assets.ts               # cache hash → asset:// (notes) + saveNoteAsset
 │   │   └── notes-conversion.ts          # TipTap JSON → Markdown pour export .md
@@ -79,18 +87,23 @@ TyroLabs_V2/
         ├── error.rs                     # ToolError + ToolResult<T>
         ├── models.rs                    # Clip, Collection, Note, NoteFormat, NotePatch
         ├── services/
+        │   ├── app_settings.rs          # get/set_app_settings (langue, clé `app.settings`)
         │   ├── store.rs                 # STORE_FILE + migrate_key
-        │   ├── system.rs                # primitives OS partagées
+        │   ├── system.rs                # diagnostics OS + IP/MAC/DNS/GPU/Java/processes
         │   └── tray.rs                  # tray menu
         └── tools/
-            ├── capture/                 # capture d'écran
+            ├── capture/                 # capture d'écran + ocr_capture_area (Windows.Media.Ocr)
             ├── clipboard/               # historique + collections (3 silos)
-            └── notes/                   # CRUD notes + collections + médias + export
+            ├── notes/                   # CRUD notes + collections + médias + export
+            │   ├── mod.rs
+            │   ├── state.rs             # NotesState : Mutex<Vec<Note>> + Mutex<Vec<Collection>>
+            │   ├── storage.rs           # clés notes.entries / notes.collections
+            │   ├── commands.rs          # 12 commandes Tauri
+            │   └── media.rs             # save/get/delete asset + extract_asset_refs
+            └── password/                # générateur (random + passphrase)
                 ├── mod.rs
-                ├── state.rs             # NotesState : Mutex<Vec<Note>> + Mutex<Vec<Collection>>
-                ├── storage.rs           # clés notes.entries / notes.collections
-                ├── commands.rs          # 12 commandes Tauri
-                └── media.rs             # save/get/delete asset + extract_asset_refs
+                ├── commands.rs          # generate_password / generate_passphrase
+                └── wordlist.rs          # wordlist EFF-style embarquée
 ```
 
 ## Convention : ajouter un outil
@@ -144,7 +157,20 @@ Pas de dispatcher central qui grossit. Pour un nouvel outil `<nom>` :
 |-----------|--------------|-------------------------------|-------------------------------------------------|
 | clipboard | ✅ livré     | `src-tauri/src/tools/clipboard/` | `src/components/tabs/{Text,Images,Links}Tab.tsx` |
 | notes     | ✅ livré     | `src-tauri/src/tools/notes/`     | `src/components/tools/notes/NotesPanel.tsx`     |
-| capture   | ✅ livré     | `src-tauri/src/tools/capture/`   | webview dédiée `/capture`                       |
+| capture   | ✅ livré     | `src-tauri/src/tools/capture/`   | webview dédiée `/capture` (boutons Image / OCR) |
+| password  | ✅ livré     | `src-tauri/src/tools/password/`  | `src/components/tools/password/PasswordPanel.tsx` |
+
+L'onglet **Favoris** a été retiré — la fonction `pin` est conservée et fait
+remonter les items épinglés en tête de leur onglet d'origine
+(cf. `useClipboardViews.ts:pinnedFirst`).
+
+Le panneau **Système** (`overlays/SysDrawer.tsx`) expose désormais Network /
+System / Hardware / Runtimes / Processes — chaque ligne est copiable, les
+processus listés peuvent être terminés (commande `kill_process`). L'IP
+publique est résolue en lazy via `get_public_ip` (PowerShell + ipify).
+
+Le service **`services/app_settings.rs`** persiste les préférences globales
+(langue) sous la clé store `app.settings`, lue par `I18nProvider` au boot.
 
 ## État du repo
 

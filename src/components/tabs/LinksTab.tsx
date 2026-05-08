@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { TextClip, ItemType, Theme } from "../../types";
 import { useTheme } from "../../lib/theme";
+import { useI18n } from "../../lib/i18n";
 import { C, hexToRgba } from "../../lib/colors";
 import { Ic } from "../icons";
 import { useDraggable } from "@dnd-kit/core";
@@ -33,6 +34,7 @@ function extractInfo(text: string): { isUrl: boolean; label: string; sub: string
 
 export function LinksTab({ links, onCtx, onDoubleClick, selection, onSelect }: Props) {
   const theme = useTheme();
+  const { t } = useI18n();
   const sorted = useMemo(
     () => [...links.filter((c) => c.pinned), ...links.filter((c) => !c.pinned)],
     [links],
@@ -52,9 +54,9 @@ export function LinksTab({ links, onCtx, onDoubleClick, selection, onSelect }: P
         }}
       >
         <Ic.Link width={32} height={32} style={{ opacity: 0.25 }} />
-        <span style={{ fontSize: 14 }}>Aucun lien</span>
+        <span style={{ fontSize: 14 }}>{t("empty.no_links")}</span>
         <span style={{ fontSize: 11, fontFamily: theme.fontMono }}>
-          Copiez un lien ou un chemin de fichier
+          {t("empty.copy_link_or_path")}
         </span>
       </div>
     );

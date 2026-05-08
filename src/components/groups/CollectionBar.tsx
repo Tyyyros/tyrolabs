@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { C, hexToRgba } from "../../lib/colors";
 import { useTheme } from "../../lib/theme";
+import { useI18n } from "../../lib/i18n";
 import { Ic } from "../icons";
 import { ConfirmationModal } from "./ConfirmationModal";
 import type { Collection } from "../../types";
@@ -187,6 +188,7 @@ export function CollectionBar({
   const [addHov, setAddHov] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const theme = useTheme();
+  const { t } = useI18n();
 
   if (collections.length === 0 && !activeCollectionId) {
     return (
@@ -225,7 +227,7 @@ export function CollectionBar({
           }}
         >
           <Ic.Plus width={14} height={14} strokeWidth={2.5} />
-          Créer une collection
+          {t("collections.create")}
         </button>
       </div>
     );
@@ -328,8 +330,8 @@ export function CollectionBar({
 
       <ConfirmationModal
         open={!!deleteConfirmId}
-        title="Supprimer la collection ?"
-        message="Es-tu sûr de vouloir supprimer cette collection ? Les éléments à l'intérieur ne seront pas supprimés mais ils ne seront plus regroupés."
+        title={t("collections.delete.confirm.title")}
+        message={t("collections.delete.confirm.message")}
         onConfirm={() => {
           if (deleteConfirmId) {
             onDeleteCollection(deleteConfirmId);

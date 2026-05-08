@@ -18,6 +18,7 @@ import { ImagesTab } from "./components/tabs/ImagesTab";
 import { LinksTab } from "./components/tabs/LinksTab";
 import { TextTab } from "./components/tabs/TextTab";
 import { NotesPanel } from "./components/tools/notes/NotesPanel";
+import { PasswordPanel } from "./components/tools/password/PasswordPanel";
 import { Toast } from "./components/ui/Toast";
 import { useAppShellEvents, useCaptureShortcut, useTauriAppEvents } from "./hooks/useAppEvents";
 import { useClipboardSelection } from "./hooks/useClipboardSelection";
@@ -28,6 +29,7 @@ import { useToast } from "./hooks/useToast";
 import { hexToRgba, C } from "./lib/colors";
 import { useClipboardStore } from "./lib/clipboard-store";
 import { ThemeProvider } from "./lib/theme";
+import { useI18n } from "./lib/i18n";
 import { THEMES } from "./themes";
 import type { AnyClip, ClipboardSettings, ItemType, TabId, TextClip, ThemeId } from "./types";
 
@@ -78,6 +80,7 @@ export default function App() {
 
   const theme = THEMES[themeName];
   const { toast, fire } = useToast();
+  const { t, lang } = useI18n();
   const {
     selection,
     clearSelection,
@@ -124,8 +127,6 @@ export default function App() {
     filteredText,
     filteredImages,
     filteredLinks,
-    pinnedText,
-    pinnedImages,
     activeCollectionName,
     statusCount,
   } = views;
@@ -170,30 +171,22 @@ export default function App() {
   const handleCapture = useCallback(() => {
     invoke("prepare_capture").catch((error) => {
       console.error(error);
-      fire("Erreur lors de la préparation de la capture");
+      fire(t("capture.prepare.failed"));
     });
-  }, [fire]);
+  }, [fire, t]);
   const capturePulse = useCaptureShortcut(handleCapture);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const selectedTextItems = useCallback(() => {
-    const source = activeTab === "links"
-      ? filteredLinks
-      : activeTab === "favs"
-        ? pinnedText
-        : filteredText;
+    const source = activeTab === "links" ? filteredLinks : filteredText;
     return source.filter((clip) => selection.has(clip.id));
-  }, [activeTab, filteredLinks, filteredText, pinnedText, selection]);
+  }, [activeTab, filteredLinks, filteredText, selection]);
 
   const selectedImageItems = useCallback(() => {
-    const source = activeTab === "images"
-      ? filteredImages
-      : activeTab === "favs"
-        ? pinnedImages
-        : [];
+    const source = activeTab === "images" ? filteredImages : [];
     return source.filter((clip) => selection.has(clip.id));
-  }, [activeTab, filteredImages, pinnedImages, selection]);
+  }, [activeTab, filteredImages, selection]);
 
   const handleBatchDelete = useCallback(() => {
     const selectedText = selectedTextItems();
@@ -208,13 +201,13 @@ export default function App() {
     ])
       .then(() => {
         clearSelection();
-        fire(`${total} élément${total > 1 ? "s" : ""} supprimé${total > 1 ? "s" : ""} ✓`);
+        fire(t("toast.deleted.batch", { n: total, s: total > 1 && lang === "fr" ? "s" : "" }));
       })
       .catch((error) => {
         console.error("[delete_clips] failed:", error);
-        fire("Erreur lors de la suppression");
+        fire(t("toast.delete.failed"));
       });
-  }, [activeTab, clearSelection, deleteClips, fire, selectedImageItems, selectedTextItems]);
+  }, [activeTab, clearSelection, deleteClips, fire, selectedImageItems, selectedTextItems, t, lang]);
 
   const handleBatchCopy = useCallback(() => {
     const selectedText = selectedTextItems();
@@ -226,11 +219,11 @@ export default function App() {
     if (hasImages && !hasText) {
       copyMergedClips(selectedImages, "image")
         .then((copied) => {
-          if (copied) fire(selectedImages.length > 1 ? "1ère image copiée (sélection multiple)" : "Image copiée ✓");
+          if (copied) fire(selectedImages.length > 1 ? t("toast.merge.first_image") : t("toast.image_copied"));
         })
         .catch((error) => {
           console.error("[copy_image] failed:", error);
-          fire("Erreur lors de la copie");
+          fire(t("toast.copy.failed"));
         });
       return;
     }
@@ -238,13 +231,13 @@ export default function App() {
     const textType: ItemType = activeTab === "links" ? "link" : "text";
     copyMergedClips(selectedText, textType)
       .then((copied) => {
-        if (copied) fire(`${selectedText.length} élément${selectedText.length > 1 ? "s" : ""} fusionné${selectedText.length > 1 ? "s" : ""} ✓`);
+        if (copied) fire(t("toast.merge.batch", { n: selectedText.length, s: selectedText.length > 1 && lang === "fr" ? "s" : "" }));
       })
       .catch((error) => {
         console.error("[copy_text] failed:", error);
-        fire("Erreur lors de la copie");
+        fire(t("toast.copy.failed"));
       });
-  }, [activeTab, copyMergedClips, fire, selectedImageItems, selectedTextItems]);
+  }, [activeTab, copyMergedClips, fire, selectedImageItems, selectedTextItems, t, lang]);
 
   useClipboardShortcuts({
     selectedCount: selection.size,
@@ -287,10 +280,10 @@ export default function App() {
     ) {
       notesStore
         .setNotesCollection([activeData.noteId], overData.collectionId)
-        .then(() => fire("Note déplacée ✓"))
+        .then(() => fire(t("notes.moved")))
         .catch((error) => {
           console.error("[set_notes_collection] failed:", error);
-          fire("Erreur lors du déplacement");
+          fire(t("toast.move.failed"));
         });
       return;
     }
@@ -304,23 +297,23 @@ export default function App() {
     const clipIds = selection.has(draggedClipId) ? Array.from(selection) : [draggedClipId];
     setClipsCollection(clipIds, collectionId, activeSilo)
       .then(() => {
-        fire(`${clipIds.length} élément${clipIds.length > 1 ? "s" : ""} déplacé${clipIds.length > 1 ? "s" : ""} ✓`);
+        fire(t("toast.move.batch", { n: clipIds.length, s: clipIds.length > 1 && lang === "fr" ? "s" : "" }));
         clearSelection();
       })
       .catch((error) => {
         console.error("Move failed:", error);
-        fire("Erreur lors du déplacement");
+        fire(t("toast.move.failed"));
       });
   };
 
   const handleDoubleClick = (id: number, type: ItemType) => {
     copyAndPromoteClip(id, type)
       .then((copied) => {
-        if (copied) fire(type === "image" ? "Image copiée ✓" : "Copié ✓");
+        if (copied) fire(type === "image" ? t("toast.image_copied") : t("toast.copied"));
       })
       .catch((error) => {
         console.error("[copy_clip] failed:", error);
-        fire("Erreur lors de la copie");
+        fire(t("toast.copy.failed"));
       });
   };
 
@@ -346,10 +339,10 @@ export default function App() {
       delete: () => {
         setCtx(null);
         deleteClips([item.id], isTextual ? type : "image")
-          .then(() => fire("Élément supprimé ✓"))
+          .then(() => fire(t("toast.deleted")))
           .catch((error) => {
             console.error("[delete_clip] failed:", error);
-            fire("Erreur lors de la suppression");
+            fire(t("toast.delete.failed"));
           });
       },
       edit: () => {
@@ -360,10 +353,10 @@ export default function App() {
         ? () => {
             setCtx(null);
             copyPlainText((item as TextClip).text)
-              .then(() => fire("Texte brut copié ✓"))
+              .then(() => fire(t("toast.plain.success")))
               .catch((error) => {
                 console.error("[copy_plain] failed:", error);
-                fire("Erreur lors de la copie");
+                fire(t("toast.copy.failed"));
               });
           }
         : undefined,
@@ -384,7 +377,7 @@ export default function App() {
   const handleSettingsChange = (settings: ClipboardSettings) => {
     updateClipboardSettings(settings).catch((error) => {
       console.error("[update_clipboard_settings] failed:", error);
-      fire("Erreur lors de l'enregistrement des réglages");
+      fire(t("toast.settings.failed"));
     });
   };
 
@@ -429,13 +422,8 @@ export default function App() {
                 {activeTab === "text" && <TextTab clips={filteredText} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selection={selection} onSelect={handleSelect} />}
                 {activeTab === "images" && <ImagesTab images={filteredImages} gridCols={3} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selection={selection} onSelect={handleSelect} />}
                 {activeTab === "links" && <LinksTab links={filteredLinks} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selection={selection} onSelect={handleSelect} />}
-                {activeTab === "favs" && (
-                  <div style={{ flex: 1, overflowY: "auto" }}>
-                    <TextTab clips={pinnedText} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selection={selection} onSelect={handleSelect} />
-                    <ImagesTab images={pinnedImages} gridCols={3} onCtx={handleCtx} onDoubleClick={handleDoubleClick} selection={selection} onSelect={handleSelect} />
-                  </div>
-                )}
                 {activeTab === "notes" && <NotesPanel store={notesStore} search={search} fire={fire} />}
+                {activeTab === "password" && <PasswordPanel fire={fire} />}
                 <DragOverlay adjustScale={false} modifiers={[snapOverlayToCursor]}>
                   {activeDragItem && (
                     <div
@@ -483,10 +471,10 @@ export default function App() {
                   onClose={() => setEditingItem(null)}
                   onSave={(id, text, type, copyAfter) => {
                     updateTextClip(id, text, type, copyAfter)
-                      .then(() => fire("Modifications enregistrées ✓"))
+                      .then(() => fire(t("toast.save.success")))
                       .catch((error) => {
                         console.error("[update_clip] failed:", error);
-                        fire("Erreur lors de l'enregistrement");
+                        fire(t("toast.save.failed"));
                       });
                   }}
                 />

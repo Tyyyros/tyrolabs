@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useTheme } from "../../lib/theme";
+import { useI18n } from "../../lib/i18n";
 import { C } from "../../lib/colors";
 import { Ic, TyroLogo } from "../icons";
 import { WinBtn } from "./WinBtn";
@@ -17,6 +18,7 @@ interface Props {
 
 export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
   const theme = useTheme();
+  const { t } = useI18n();
   const [searchFocused, setSearchFocused] = useState(false);
 
   useEffect(() => {
@@ -135,7 +137,7 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
             onChange={(e) => onSearch(e.target.value)}
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setSearchFocused(false)}
-            placeholder="Rechercher..."
+            placeholder={t("titlebar.search.placeholder")}
             style={{
               background: "none",
               border: "none",
@@ -182,18 +184,18 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", padding: "0 6px" }}>
-          <WinBtn onClick={onPin} active={pinned} title="Toujours au premier plan">
+          <WinBtn onClick={onPin} active={pinned} title={t("titlebar.pin")}>
             <Ic.Pin width={20} height={20} strokeWidth={theme.iconStroke} />
           </WinBtn>
           <div style={{ width: 1, height: 20, background: C.border, margin: "0 6px" }} />
         </div>
-        <WinBtn isWinCtrl onClick={() => win.minimize()} title="Réduire">
+        <WinBtn isWinCtrl onClick={() => win.minimize()} title={t("titlebar.minimize")}>
           <Ic.Min width={18} height={18} strokeWidth={2.5} />
         </WinBtn>
-        <WinBtn isWinCtrl onClick={() => win.toggleMaximize()} title="Agrandir">
+        <WinBtn isWinCtrl onClick={() => win.toggleMaximize()} title={t("titlebar.maximize")}>
           <Ic.Max width={16} height={16} strokeWidth={2.5} />
         </WinBtn>
-        <WinBtn isWinCtrl danger onClick={() => win.close()} title="Fermer">
+        <WinBtn isWinCtrl danger onClick={() => win.close()} title={t("titlebar.close")}>
           <Ic.X width={18} height={18} strokeWidth={2.5} />
         </WinBtn>
       </div>

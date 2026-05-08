@@ -12,6 +12,11 @@ use crate::tools::capture::windows::get_open_windows;
 use crate::tools::clipboard::state::ClipboardState;
 use crate::tools::clipboard::storage::{delete_image_file, save_history, truncate_history};
 
+use ::windows::Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap};
+use ::windows::Media::Ocr::OcrEngine;
+use ::windows::Security::Cryptography::CryptographicBuffer;
+use ::windows_future::AsyncStatus;
+
 const STAGING_FILE: &str = "_staging.png";
 const CAPTURES_DIR: &str = "captures";
 /// Délai après `minimize()` pour laisser DWM rafraîchir le buffer écran.
@@ -304,4 +309,116 @@ pub async fn save_capture_area(
     let _ = app.emit_to("main", "capture://done", ());
 
     Ok(())
+}
+
+/// Extrait le texte de la zone sélectionnée via Windows.Media.Ocr (natif,
+/// gratuit, multilangue selon les packs installés). Le texte est copié dans
+/// le presse-papier via arboard.
+///
+/// Pas de consommation du staging : on peut relancer un OCR sur la même
+/// capture si l'utilisateur change la zone. La capture est invalidée
+/// uniquement lors d'un `cancel_capture` ou `save_capture_area`.
+#[tauri::command]
+pub async fn ocr_capture_area(
+    capture: tauri::State<'_, CaptureState>,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+) -> ToolResult<String> {
+    if width == 0 || height == 0 {
+        return Err(ToolError::InvalidInput("dimensions invalides".into()));
+    }
+    let rgba = {
+        let guard = capture.staging.lock().expect("capture staging poisoned");
+        guard
+            .as_ref()
+            .and_then(|s| s.image.clone())
+            .ok_or(ToolError::Message("aucune capture préparée".into()))?
+    };
+
+    let img_w = rgba.width() as i64;
+    let img_h = rgba.height() as i64;
+    let cx = (x as i64).clamp(0, img_w.saturating_sub(1));
+    let cy = (y as i64).clamp(0, img_h.saturating_sub(1));
+    let cw = (width as i64).min(img_w - cx).max(1) as u32;
+    let ch = (height as i64).min(img_h - cy).max(1) as u32;
+    let cropped = image::imageops::crop_imm(&*rgba, cx as u32, cy as u32, cw, ch).to_image();
+
+    let text = tauri::async_runtime::spawn_blocking(move || run_winrt_ocr(cropped))
+        .await
+        .map_err(|e| ToolError::Message(format!("ocr join error: {e}")))??;
+
+    if text.trim().is_empty() {
+        return Err(ToolError::NotFound("ocr empty".into()));
+    }
+
+    {
+        let mut clipboard = arboard::Clipboard::new()
+            .map_err(|e| ToolError::Message(format!("clipboard init: {e}")))?;
+        clipboard
+            .set_text(text.clone())
+            .map_err(|e| ToolError::Message(format!("clipboard set: {e}")))?;
+    }
+
+    Ok(text)
+}
+
+fn run_winrt_ocr(rgba: image::RgbaImage) -> ToolResult<String> {
+    let w = rgba.width() as i32;
+    let h = rgba.height() as i32;
+
+    // RGBA → BGRA8 (format requis par SoftwareBitmap::CreateCopyFromBuffer
+    // pour OcrEngine sur la majorité des installations Windows 10+/11).
+    let mut bgra = Vec::with_capacity(rgba.as_raw().len());
+    for chunk in rgba.as_raw().chunks_exact(4) {
+        bgra.push(chunk[2]);
+        bgra.push(chunk[1]);
+        bgra.push(chunk[0]);
+        bgra.push(chunk[3]);
+    }
+
+    let ibuffer = CryptographicBuffer::CreateFromByteArray(&bgra)
+        .map_err(|e| ToolError::Message(format!("buffer create: {e}")))?;
+
+    let bitmap =
+        SoftwareBitmap::CreateCopyFromBuffer(&ibuffer, BitmapPixelFormat::Bgra8, w, h)
+            .map_err(|e| ToolError::Message(format!("softbitmap create: {e}")))?;
+
+    let engine = OcrEngine::TryCreateFromUserProfileLanguages()
+        .map_err(|e| ToolError::Message(format!("ocr engine: {e}")))?;
+
+    let ocr_op = engine
+        .RecognizeAsync(&bitmap)
+        .map_err(|e| ToolError::Message(format!("ocr recognize: {e}")))?;
+
+    // IAsyncOperation n'expose pas `.get()` synchrone dans windows 0.62 ; on
+    // poll Status() jusqu'à Completed (timeout sécurité de 8 s).
+    let start = std::time::Instant::now();
+    loop {
+        match ocr_op
+            .Status()
+            .map_err(|e| ToolError::Message(format!("ocr status: {e}")))?
+        {
+            AsyncStatus::Completed => break,
+            AsyncStatus::Started => {
+                if start.elapsed() > Duration::from_secs(8) {
+                    return Err(ToolError::Message("ocr timeout".into()));
+                }
+                std::thread::sleep(Duration::from_millis(15));
+            }
+            AsyncStatus::Canceled => return Err(ToolError::Message("ocr canceled".into())),
+            AsyncStatus::Error => return Err(ToolError::Message("ocr error state".into())),
+            _ => return Err(ToolError::Message("ocr unknown status".into())),
+        }
+    }
+
+    let result = ocr_op
+        .GetResults()
+        .map_err(|e| ToolError::Message(format!("ocr results: {e}")))?;
+    let text = result
+        .Text()
+        .map_err(|e| ToolError::Message(format!("ocr text: {e}")))?
+        .to_string();
+    Ok(text)
 }

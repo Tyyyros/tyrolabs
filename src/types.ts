@@ -1,7 +1,7 @@
 export type ItemType = "text" | "image" | "link";
 export type TextClipType = "text" | "code" | "link";
 
-export type TabId = "text" | "images" | "links" | "favs" | "notes";
+export type TabId = "text" | "images" | "links" | "notes" | "password";
 
 export type NoteFormat = "richtext" | "markdown";
 

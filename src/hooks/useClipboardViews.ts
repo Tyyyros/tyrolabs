@@ -72,19 +72,17 @@ export function useClipboardViews({
 
   const query = search.toLowerCase();
   const filteredText = useMemo(
-    () => filterByQuery(baseText, query) as TextClip[],
+    () => pinnedFirst(filterByQuery(baseText, query)) as TextClip[],
     [baseText, query],
   );
   const filteredImages = useMemo(
-    () => filterByQuery(baseImages, query) as ImageClip[],
+    () => pinnedFirst(filterByQuery(baseImages, query)) as ImageClip[],
     [baseImages, query],
   );
   const filteredLinks = useMemo(
-    () => filterByQuery(baseText.filter((clip) => isLinkOrPath(clip.text)), query) as TextClip[],
+    () => pinnedFirst(filterByQuery(baseText.filter((clip) => isLinkOrPath(clip.text)), query)) as TextClip[],
     [baseText, query],
   );
-  const pinnedText = useMemo(() => textClips.filter((clip) => clip.pinned), [textClips]);
-  const pinnedImages = useMemo(() => imageClips.filter((clip) => clip.pinned), [imageClips]);
   const activeCollectionName = useMemo(
     () => activeCollections.find((collection) => collection.id === activeCollectionId)?.name ?? null,
     [activeCollections, activeCollectionId],
@@ -92,15 +90,12 @@ export function useClipboardViews({
   const statusCount = useMemo(() => {
     if (activeTab === "images") return filteredImages.length;
     if (activeTab === "links") return filteredLinks.length;
-    if (activeTab === "favs") return pinnedText.length + pinnedImages.length;
     return filteredText.length;
   }, [
     activeTab,
     filteredImages.length,
     filteredLinks.length,
     filteredText.length,
-    pinnedText.length,
-    pinnedImages.length,
   ]);
 
   return {
@@ -110,11 +105,19 @@ export function useClipboardViews({
     filteredText,
     filteredImages,
     filteredLinks,
-    pinnedText,
-    pinnedImages,
     activeCollectionName,
     statusCount,
   };
+}
+
+function pinnedFirst<T extends { pinned: boolean }>(clips: T[]): T[] {
+  const pinned: T[] = [];
+  const rest: T[] = [];
+  for (const clip of clips) {
+    if (clip.pinned) pinned.push(clip);
+    else rest.push(clip);
+  }
+  return [...pinned, ...rest];
 }
 
 function filterByQuery(clips: AnyClip[], query: string) {

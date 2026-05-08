@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useI18n } from "../../lib/i18n";
 import type { WindowRect } from "../../types";
+
+type CaptureMode = "image" | "ocr";
 
 interface CaptureData {
   image_path: string;
@@ -34,6 +37,7 @@ function nextPaint(): Promise<void> {
 }
 
 export function CaptureOverlay() {
+  const { t } = useI18n();
   const [data, setData] = useState<CaptureData | null>(null);
   const [bgUrl, setBgUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +45,9 @@ export function CaptureOverlay() {
   const [hovered, setHovered] = useState<Rect | null>(null);
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
   const [dragEnd, setDragEnd] = useState<{ x: number; y: number } | null>(null);
+  const [mode, setMode] = useState<CaptureMode>("image");
+  const [ocrBusy, setOcrBusy] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   /** Ratio CSS-px → physical-px dérivé du viewport réel.
    *  Tauri positionne l'overlay en LOGICAL → window.innerWidth/Height
@@ -186,6 +193,10 @@ export function CaptureOverlay() {
   };
 
   const commit = (rect: Rect) => {
+    if (mode === "ocr") {
+      runOcr(rect);
+      return;
+    }
     invoke("save_capture_area", {
       x: Math.round(rect.x),
       y: Math.round(rect.y),
@@ -199,6 +210,39 @@ export function CaptureOverlay() {
       .catch((e) => {
         console.error(e);
         setError(String(e));
+      });
+  };
+
+  const runOcr = (rect: Rect) => {
+    setOcrBusy(true);
+    setStatusMsg(t("capture.ocr.loading"));
+    invoke<string>("ocr_capture_area", {
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    })
+      .then(async (text) => {
+        setOcrBusy(false);
+        setStatusMsg(t("capture.ocr.success", { count: text.length }));
+        setTimeout(async () => {
+          await invoke("cancel_capture").catch(() => {});
+          reset();
+          await getCurrentWindow().hide();
+        }, 600);
+      })
+      .catch((e) => {
+        setOcrBusy(false);
+        const msg = String(e ?? "");
+        if (msg.includes("ocr empty") || msg.includes("not found: ocr")) {
+          setStatusMsg(t("capture.ocr.empty"));
+        } else {
+          setStatusMsg(t("capture.ocr.failed", { error: msg }));
+        }
+        setDragStart(null);
+        setDragEnd(null);
+        // Laisse le toast affiché 2.5s puis l'efface.
+        setTimeout(() => setStatusMsg(null), 2500);
       });
   };
 
@@ -366,25 +410,73 @@ export function CaptureOverlay() {
           bottom: 40,
           left: "50%",
           transform: "translateX(-50%)",
-          background: "rgba(0,0,0,0.8)",
+          background: "rgba(0,0,0,0.85)",
           color: "#fff",
-          padding: "10px 20px",
+          padding: "8px 8px 8px 16px",
           borderRadius: 24,
           fontSize: 13,
           fontWeight: 500,
-          pointerEvents: "none",
           boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
           border: "1px solid rgba(255,255,255,0.1)",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
         }}
       >
-        {dragRect
-          ? "Relâchez pour capturer la région"
-          : hovered
-            ? "Cliquez pour capturer la fenêtre"
-            : "Cliquez pour capturer l'écran entier"}
-        {" • "}
-        <span style={{ opacity: 0.7 }}>Glissez pour une région • Échap pour annuler</span>
+        <span style={{ pointerEvents: "none" }}>
+          {statusMsg ?? (dragRect
+            ? mode === "ocr"
+              ? t("capture.button.ocr")
+              : "→ image"
+            : t("capture.tip"))}
+        </span>
+        <div style={{ display: "flex", gap: 4 }}>
+          <ModeBtn
+            active={mode === "image"}
+            label={t("capture.button.copy")}
+            onClick={() => setMode("image")}
+            disabled={ocrBusy}
+          />
+          <ModeBtn
+            active={mode === "ocr"}
+            label={t("capture.button.ocr")}
+            onClick={() => setMode("ocr")}
+            disabled={ocrBusy}
+          />
+        </div>
       </div>
     </div>
+  );
+}
+
+function ModeBtn({
+  active,
+  label,
+  onClick,
+  disabled,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        padding: "6px 14px",
+        fontSize: 12,
+        fontWeight: 600,
+        borderRadius: 18,
+        border: active ? "1px solid #ef4444" : "1px solid rgba(255,255,255,0.15)",
+        background: active ? "#ef4444" : "rgba(255,255,255,0.06)",
+        color: active ? "#fff" : "rgba(255,255,255,0.85)",
+        cursor: disabled ? "wait" : "pointer",
+        transition: "all 0.12s",
+      }}
+    >
+      {label}
+    </button>
   );
 }

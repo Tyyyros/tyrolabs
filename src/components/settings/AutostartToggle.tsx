@@ -1,8 +1,10 @@
 import { useAutostart } from "../../hooks/useAutostart";
+import { useI18n } from "../../lib/i18n";
 import { C } from "../../lib/colors";
 import { Toggle } from "../ui/Toggle";
 
 export function AutostartToggle() {
+  const { t } = useI18n();
   const {
     available,
     availabilityMessage,
@@ -33,7 +35,7 @@ export function AutostartToggle() {
           borderBottom: `1px solid ${C.borderDim}`,
         }}
       >
-        <span style={{ fontSize: 13 }}>Lancer au démarrage de Windows</span>
+        <span style={{ fontSize: 13 }}>{t("settings.autostart.label")}</span>
         <div
           style={{
             opacity: disabled ? 0.45 : 1,
@@ -88,7 +90,7 @@ export function AutostartToggle() {
               flexShrink: 0,
             }}
           >
-            Réessayer
+            {t("settings.autostart.retry")}
           </button>
         </div>
       )}

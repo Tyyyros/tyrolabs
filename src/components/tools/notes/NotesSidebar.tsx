@@ -3,6 +3,7 @@ import { useDroppable } from "@dnd-kit/core";
 
 import type { Collection } from "../../../types";
 import { useTheme } from "../../../lib/theme";
+import { useI18n } from "../../../lib/i18n";
 import { C, hexToRgba } from "../../../lib/colors";
 import { Ic } from "../../icons";
 
@@ -36,6 +37,7 @@ export function NotesSidebar({
   totalCount,
 }: Props) {
   const theme = useTheme();
+  const { t } = useI18n();
 
   return (
     <aside
@@ -49,17 +51,17 @@ export function NotesSidebar({
         overflowY: "auto",
       }}
     >
-      <Section label="Collections" action={
+      <Section label={t("notes.section.collections")} action={
         <button
           onClick={onCreateCollection}
-          title="Nouvelle collection"
+          title={t("notes.collection.new.tooltip")}
           style={iconBtnStyle(theme.accent)}
         >
           <Ic.Plus width={11} height={11} strokeWidth={2.2} />
         </button>
       }>
         <SidebarItem
-          label="Toutes les notes"
+          label={t("notes.collections.all")}
           icon={<Ic.Note width={13} height={13} />}
           active={activeCollectionId === null}
           onClick={() => onSelectCollection(null)}
@@ -79,12 +81,12 @@ export function NotesSidebar({
       </Section>
 
       <Section
-        label="Tags"
+        label={t("notes.section.tags")}
         action={
           activeTags.length > 0 ? (
             <button
               onClick={onClearTags}
-              title="Effacer les tags actifs"
+              title={t("notes.tags.clear")}
               style={iconBtnStyle(C.t3)}
             >
               <Ic.X width={10} height={10} strokeWidth={2.2} />
@@ -94,16 +96,16 @@ export function NotesSidebar({
       >
         {tags.length === 0 ? (
           <div style={{ padding: "4px 12px", fontSize: 10.5, color: C.t3 }}>
-            Aucun tag
+            {t("notes.tags.empty")}
           </div>
         ) : (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, padding: "0 8px 6px" }}>
-            {tags.map((t) => {
-              const active = activeTags.includes(t);
+            {tags.map((tag) => {
+              const active = activeTags.includes(tag);
               return (
                 <button
-                  key={t}
-                  onClick={() => onToggleTag(t)}
+                  key={tag}
+                  onClick={() => onToggleTag(tag)}
                   style={{
                     fontSize: 10.5,
                     padding: "2px 8px",
@@ -115,7 +117,7 @@ export function NotesSidebar({
                     cursor: "pointer",
                   }}
                 >
-                  {t}
+                  {tag}
                 </button>
               );
             })}
@@ -182,6 +184,8 @@ interface RowProps {
 
 function CollectionRow({ collection, active, count, onSelect, onRename, onDelete }: RowProps) {
   const theme = useTheme();
+  const { t } = useI18n();
+  const tooltip = t("notes.collection.delete.tooltip");
   const [hov, setHov] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(collection.name);
@@ -285,7 +289,7 @@ function CollectionRow({ collection, active, count, onSelect, onRename, onDelete
             e.stopPropagation();
             onDelete();
           }}
-          title="Supprimer la collection"
+          title={tooltip}
           style={iconBtnStyle(C.t3)}
         >
           <Ic.Trash width={11} height={11} strokeWidth={1.8} />

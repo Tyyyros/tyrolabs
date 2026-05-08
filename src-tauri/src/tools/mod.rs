@@ -4,3 +4,4 @@
 pub mod capture;
 pub mod clipboard;
 pub mod notes;
+pub mod password;

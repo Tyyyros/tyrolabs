@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import type { ImageClip, ItemType, Theme } from "../../types";
 import { useTheme } from "../../lib/theme";
+import { useI18n } from "../../lib/i18n";
 import { C, hexToRgba } from "../../lib/colors";
 import { Ic } from "../icons";
 import { useDraggable } from "@dnd-kit/core";
@@ -196,6 +197,7 @@ function ImgRow({
 type ImageLoadState = "loading" | "ready" | "error";
 
 function ImgView({ hash }: { hash: string }) {
+  const { t } = useI18n();
   const [src, setSrc] = useState<string | null>(null);
   const [status, setStatus] = useState<ImageLoadState>("loading");
 
@@ -233,7 +235,7 @@ function ImgView({ hash }: { hash: string }) {
         }}
       >
         <Ic.Image width={18} height={18} />
-        <span>Miniature indisponible</span>
+        <span>{t("empty.thumbnail_unavailable")}</span>
       </div>
     );
   }

@@ -92,6 +92,20 @@ export const Ic = {
       <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z" />
     </>,
   ),
+  Lock: mkSvg(
+    <>
+      <rect x="4" y="11" width="16" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </>,
+  ),
+  RefreshCw: mkSvg(
+    <>
+      <polyline points="23 4 23 10 17 10" />
+      <polyline points="1 20 1 14 7 14" />
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10" />
+      <path d="M20.49 15A9 9 0 0 1 5.64 18.36L1 14" />
+    </>,
+  ),
   Min: mkSvg(<line x1="5" y1="12" x2="19" y2="12" />),
   Max: mkSvg(<rect x="3" y="3" width="18" height="18" rx="1.5" />),
   X: mkSvg(

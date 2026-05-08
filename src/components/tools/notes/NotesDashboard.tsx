@@ -2,6 +2,7 @@ import { useMemo } from "react";
 
 import type { Collection, Note } from "../../../types";
 import { useTheme } from "../../../lib/theme";
+import { useI18n } from "../../../lib/i18n";
 import { C, hexToRgba } from "../../../lib/colors";
 import { Ic } from "../../icons";
 import { NoteCard } from "./NoteCard";
@@ -71,6 +72,7 @@ export function NotesDashboard({
 
 function NewNoteCard({ onClick }: { onClick: () => void }) {
   const theme = useTheme();
+  const { t } = useI18n();
   return (
     <button
       onClick={onClick}
@@ -97,13 +99,14 @@ function NewNoteCard({ onClick }: { onClick: () => void }) {
       }}
     >
       <Ic.Plus width={20} height={20} strokeWidth={1.8} />
-      <span>Nouvelle note</span>
+      <span>{t("notes.create")}</span>
     </button>
   );
 }
 
 function EmptyState({ onCreate, hint }: { onCreate: () => void; hint?: string }) {
   const theme = useTheme();
+  const { t } = useI18n();
   return (
     <div
       style={{
@@ -118,7 +121,7 @@ function EmptyState({ onCreate, hint }: { onCreate: () => void; hint?: string })
       }}
     >
       <Ic.Note width={42} height={42} strokeWidth={1.4} style={{ opacity: 0.4 }} />
-      <div style={{ fontSize: 13, color: C.t2 }}>{hint ?? "Aucune note"}</div>
+      <div style={{ fontSize: 13, color: C.t2 }}>{hint ?? t("notes.empty.title")}</div>
       <button
         onClick={onCreate}
         style={{
@@ -136,7 +139,7 @@ function EmptyState({ onCreate, hint }: { onCreate: () => void; hint?: string })
         }}
       >
         <Ic.Plus width={13} height={13} strokeWidth={2.2} />
-        Créer une note
+        {t("notes.create")}
       </button>
     </div>
   );

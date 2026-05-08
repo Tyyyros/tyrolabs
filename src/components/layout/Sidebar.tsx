@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, type ComponentType } from "react";
 import { useTheme } from "../../lib/theme";
+import { useI18n } from "../../lib/i18n";
+import type { StringKey } from "../../lib/strings";
 import { C } from "../../lib/colors";
 import { Ic, type IcProps } from "../icons";
 import type { TabId } from "../../types";
@@ -11,16 +13,16 @@ type IcComponent = ComponentType<IcProps>;
 interface NavItem {
   id: TabId;
   Icon: IcComponent;
-  label: string;
+  labelKey: StringKey;
 }
 
 const NAV: (NavItem | null)[] = [
-  { id: "text", Icon: Ic.Text, label: "Texte" },
-  { id: "images", Icon: Ic.Image, label: "Images" },
-  { id: "links", Icon: Ic.Link, label: "Liens" },
+  { id: "text", Icon: Ic.Text, labelKey: "nav.text" },
+  { id: "images", Icon: Ic.Image, labelKey: "nav.images" },
+  { id: "links", Icon: Ic.Link, labelKey: "nav.links" },
   null,
-  { id: "notes", Icon: Ic.Note, label: "Notes" },
-  { id: "favs", Icon: Ic.Star, label: "Favoris" },
+  { id: "notes", Icon: Ic.Note, labelKey: "nav.notes" },
+  { id: "password", Icon: Ic.Lock, labelKey: "nav.password" },
 ];
 
 interface SbBtnProps {
@@ -63,6 +65,21 @@ interface CaptureMenuItemProps {
   label: string;
   shortcut?: string;
   onClick: () => void;
+}
+
+function NavBtn({
+  Icon,
+  labelKey,
+  active,
+  onClick,
+}: {
+  Icon: IcComponent;
+  labelKey: StringKey;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const { t } = useI18n();
+  return <SbBtn Icon={Icon} label={t(labelKey)} active={active} onClick={onClick} />;
 }
 
 function CaptureMenuItem({ label, shortcut, onClick }: CaptureMenuItemProps) {
@@ -110,6 +127,7 @@ function CaptureBtn({ onCapture, pulse }: { onCapture: () => void; pulse: number
   const [countdown, setCountdown] = useState<number | null>(null);
   const [pulsing, setPulsing] = useState(false);
   const theme = useTheme();
+  const { t } = useI18n();
   const timerRef = useRef<number | null>(null);
   const pulseTimerRef = useRef<number | null>(null);
 
@@ -173,7 +191,7 @@ function CaptureBtn({ onCapture, pulse }: { onCapture: () => void; pulse: number
     >
       <button
         onClick={() => (countdown === null ? startCapture() : null)}
-        title="Capture d'écran (Alt+C)"
+        title={t("nav.capture")}
         style={{
           width: "100%",
           height: 46,
@@ -248,12 +266,12 @@ function CaptureBtn({ onCapture, pulse }: { onCapture: () => void; pulse: number
           }}
         >
           <CaptureMenuItem
-            label="Capture normale"
+            label={t("nav.capture.normal")}
             shortcut="Alt+C"
             onClick={startCapture}
           />
           <CaptureMenuItem
-            label="Différée (5s)"
+            label={t("nav.capture.delayed")}
             onClick={startDelayed}
           />
         </div>
@@ -272,6 +290,7 @@ interface Props {
 }
 
 export function Sidebar({ activeTab, onTab, onSettings, onSystem, onCapture, capturePulse }: Props) {
+  const { t } = useI18n();
   return (
     <div
       style={{
@@ -291,10 +310,10 @@ export function Sidebar({ activeTab, onTab, onSettings, onSystem, onCapture, cap
               style={{ height: 1, background: C.border, margin: "6px 10px", opacity: 0.5 }}
             />
           ) : (
-            <SbBtn
+            <NavBtn
               key={item.id}
               Icon={item.Icon}
-              label={item.label}
+              labelKey={item.labelKey}
               active={activeTab === item.id}
               onClick={() => onTab(item.id)}
             />
@@ -303,8 +322,8 @@ export function Sidebar({ activeTab, onTab, onSettings, onSystem, onCapture, cap
       </div>
       <div style={{ borderTop: `1px solid ${C.border}`, paddingBottom: 4, paddingTop: 4 }}>
         <CaptureBtn onCapture={onCapture} pulse={capturePulse} />
-        <SbBtn Icon={Ic.Settings} label="Réglages" onClick={onSettings} />
-        <SbBtn Icon={Ic.Cpu} label="Système" onClick={onSystem} />
+        <SbBtn Icon={Ic.Settings} label={t("nav.settings")} onClick={onSettings} />
+        <SbBtn Icon={Ic.Cpu} label={t("nav.system")} onClick={onSystem} />
       </div>
     </div>
   );

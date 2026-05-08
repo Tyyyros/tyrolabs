@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTheme } from "../../lib/theme";
+import { useI18n } from "../../lib/i18n";
+import type { StringKey } from "../../lib/strings";
 import { C } from "../../lib/colors";
 import { Ic } from "../icons";
 import type { TabId } from "../../types";
@@ -11,31 +13,41 @@ interface Props {
   collectionName?: string | null;
 }
 
-const LABELS: Record<TabId, string> = {
-  text: "texte",
-  images: "image",
-  links: "lien",
-  favs: "favori",
-  notes: "note",
+const LABEL_KEYS: Record<TabId, StringKey> = {
+  text: "status.label.text",
+  images: "status.label.images",
+  links: "status.label.links",
+  notes: "status.label.notes",
+  password: "status.label.fallback",
 };
-
-const formatTime = () =>
-  new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
 export function StatusBar({ tab, visibleCount, selectedCount, collectionName }: Props) {
   const theme = useTheme();
-  const [time, setTime] = useState(formatTime);
+  const { t, lang } = useI18n();
+  const [time, setTime] = useState(() =>
+    new Date().toLocaleTimeString(lang === "fr" ? "fr-FR" : "en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+  );
 
   useEffect(() => {
+    const formatTime = () =>
+      new Date().toLocaleTimeString(lang === "fr" ? "fr-FR" : "en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    setTime(formatTime());
     const timer = setInterval(() => setTime(formatTime()), 15000);
     return () => clearInterval(timer);
-  }, []);
+  }, [lang]);
 
-  const label = LABELS[tab] ?? "élément";
+  const labelKey = LABEL_KEYS[tab] ?? ("status.label.fallback" as StringKey);
   const countLabel = useMemo(() => {
-    const suffix = visibleCount > 1 ? "s" : "";
+    const label = t(labelKey);
+    const suffix = visibleCount > 1 && lang === "fr" ? "s" : "";
     return `${visibleCount} ${label}${suffix}`;
-  }, [label, visibleCount]);
+  }, [labelKey, visibleCount, t, lang]);
 
   return (
     <div
@@ -67,7 +79,7 @@ export function StatusBar({ tab, visibleCount, selectedCount, collectionName }: 
         <>
           <span style={{ width: 1, height: 10, background: C.border, opacity: 0.7 }} />
           <span style={{ fontFamily: theme.fontMono, fontSize: 10, color: theme.accent }}>
-            {selectedCount} sélectionné{selectedCount > 1 ? "s" : ""}
+            {t("status.selected", { n: selectedCount, s: selectedCount > 1 && lang === "fr" ? "s" : "" })}
           </span>
         </>
       )}

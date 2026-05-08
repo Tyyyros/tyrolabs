@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { TextClip, ItemType, Theme } from "../../types";
 import { useTheme } from "../../lib/theme";
+import { useI18n } from "../../lib/i18n";
 import { C, hexToRgba } from "../../lib/colors";
 import { Ic } from "../icons";
 import { useDraggable } from "@dnd-kit/core";
@@ -21,6 +22,7 @@ interface Props {
 
 export function TextTab({ clips, onCtx, onDoubleClick, selection, onSelect }: Props) {
   const theme = useTheme();
+  const { t } = useI18n();
   const sorted = useMemo(
     () => [...clips.filter((c) => c.pinned), ...clips.filter((c) => !c.pinned)],
     [clips],
@@ -38,7 +40,7 @@ export function TextTab({ clips, onCtx, onDoubleClick, selection, onSelect }: Pr
           fontSize: 14,
         }}
       >
-        Aucun résultat
+        {t("empty.no_results")}
       </div>
     );
   }

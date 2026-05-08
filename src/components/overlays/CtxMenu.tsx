@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import type { AnyClip, ItemType, TextClip, ImageClip } from "../../types";
 import { useTheme } from "../../lib/theme";
+import { useI18n } from "../../lib/i18n";
 import { C } from "../../lib/colors";
 import { Ic } from "../icons";
 
@@ -31,6 +32,7 @@ interface RowDef {
 
 export function CtxMenu({ x, y, item, itemType, handlers }: Props) {
   const theme = useTheme();
+  const { t } = useI18n();
   const ax = Math.min(x, window.innerWidth - 230);
   const ay = Math.min(y, window.innerHeight - 260);
 
@@ -38,8 +40,8 @@ export function CtxMenu({ x, y, item, itemType, handlers }: Props) {
     itemType === "image"
       ? (item as ImageClip).hash
       : (() => {
-            const t = (item as TextClip).text || "";
-            return t.substring(0, 52) + (t.length > 52 ? "\u2026" : "");
+            const txt = (item as TextClip).text || "";
+            return txt.substring(0, 52) + (txt.length > 52 ? "\u2026" : "");
           })();
 
   const isPinned = (item as TextClip | ImageClip).pinned;
@@ -48,35 +50,35 @@ export function CtxMenu({ x, y, item, itemType, handlers }: Props) {
   ) : (
     <Ic.Pin width={17} height={17} strokeWidth={2.2} />
   );
-  const pinLabel = isPinned ? "Désépingler" : "Épingler";
+  const pinLabel = isPinned ? t("ctx.unpin") : t("ctx.pin");
 
   let rows: (RowDef | null)[];
   if (itemType === "text") {
     rows = [
-      { label: "Copier", icon: <Ic.Copy width={17} height={17} strokeWidth={2.2} />, action: handlers.copy },
-      { label: "Éditer", icon: <Ic.Edit width={17} height={17} strokeWidth={2.2} />, action: handlers.edit },
+      { label: t("ctx.copy"), icon: <Ic.Copy width={17} height={17} strokeWidth={2.2} />, action: handlers.copy },
+      { label: t("ctx.edit"), icon: <Ic.Edit width={17} height={17} strokeWidth={2.2} />, action: handlers.edit },
       { label: pinLabel, icon: pinIcon, action: handlers.pin },
       null,
-      { label: "Copier texte brut", icon: <Ic.Clip width={17} height={17} strokeWidth={2.2} />, action: handlers.copyPlain ?? (() => {}) },
-      { label: "Supprimer", icon: <Ic.Trash width={17} height={17} strokeWidth={2.2} />, action: handlers.delete, danger: true },
+      { label: t("ctx.copyPlain"), icon: <Ic.Clip width={17} height={17} strokeWidth={2.2} />, action: handlers.copyPlain ?? (() => {}) },
+      { label: t("ctx.delete"), icon: <Ic.Trash width={17} height={17} strokeWidth={2.2} />, action: handlers.delete, danger: true },
     ];
   } else if (itemType === "image") {
     rows = [
-      { label: "Copier l'image", icon: <Ic.Copy width={17} height={17} strokeWidth={2.2} />, action: handlers.copy },
-      { label: "Ouvrir dans Paint", icon: <Ic.Paint width={17} height={17} strokeWidth={2.2} />, action: handlers.open ?? (() => {}) },
-      { label: "Renommer", icon: <Ic.Edit width={17} height={17} strokeWidth={2.2} />, action: handlers.edit },
+      { label: t("ctx.copyImage"), icon: <Ic.Copy width={17} height={17} strokeWidth={2.2} />, action: handlers.copy },
+      { label: t("ctx.openInPaint"), icon: <Ic.Paint width={17} height={17} strokeWidth={2.2} />, action: handlers.open ?? (() => {}) },
+      { label: t("ctx.rename"), icon: <Ic.Edit width={17} height={17} strokeWidth={2.2} />, action: handlers.edit },
       { label: pinLabel, icon: pinIcon, action: handlers.pin },
       null,
-      { label: "Supprimer", icon: <Ic.Trash width={17} height={17} strokeWidth={2.2} />, action: handlers.delete, danger: true },
+      { label: t("ctx.delete"), icon: <Ic.Trash width={17} height={17} strokeWidth={2.2} />, action: handlers.delete, danger: true },
     ];
   } else {
     rows = [
-      { label: "Ouvrir", icon: <Ic.ArrowUp width={17} height={17} strokeWidth={2.2} />, action: handlers.open ?? (() => {}) },
-      { label: "Copier", icon: <Ic.Copy width={17} height={17} strokeWidth={2.2} />, action: handlers.copy },
-      { label: "Éditer", icon: <Ic.Edit width={17} height={17} strokeWidth={2.2} />, action: handlers.edit },
+      { label: t("ctx.open"), icon: <Ic.ArrowUp width={17} height={17} strokeWidth={2.2} />, action: handlers.open ?? (() => {}) },
+      { label: t("ctx.copy"), icon: <Ic.Copy width={17} height={17} strokeWidth={2.2} />, action: handlers.copy },
+      { label: t("ctx.edit"), icon: <Ic.Edit width={17} height={17} strokeWidth={2.2} />, action: handlers.edit },
       { label: pinLabel, icon: pinIcon, action: handlers.pin },
       null,
-      { label: "Supprimer", icon: <Ic.Trash width={17} height={17} strokeWidth={2.2} />, action: handlers.delete, danger: true },
+      { label: t("ctx.delete"), icon: <Ic.Trash width={17} height={17} strokeWidth={2.2} />, action: handlers.delete, danger: true },
     ];
   }
 

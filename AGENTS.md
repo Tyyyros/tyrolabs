@@ -12,12 +12,19 @@ tray.
 - Rust backend.
 - React 19 + TypeScript frontend.
 - Inline theme tokens and CSS variables.
+- In-house FR/EN i18n via `src/lib/i18n.tsx` + `src/lib/strings.ts`. Language is
+  persisted server-side under `app.settings` (see `services/app_settings.rs`).
 - Vite 7 build.
 - Local SVG icon set in `src/components/icons.tsx`.
 - `@dnd-kit/core` for drag and drop.
 - TipTap 2 for the Notes Rich Text editor; `tiptap-markdown` only used for the `.md` export pipeline.
 - `tauri-plugin-dialog` + `@tauri-apps/plugin-dialog` for the Markdown export save dialog.
 - Official Tauri autostart plugin for Windows startup launch control.
+- `windows-rs` (features `Media_Ocr` + `Graphics_Imaging` + `Security_Cryptography`)
+  with `windows-future::AsyncStatus` for the in-capture OCR command.
+- `zxcvbn` + `rand` for the Password generator strength meter and randomness;
+  EFF-style wordlist embedded for the passphrase mode.
+- `local-ip-address` plus `ipconfig`/`wmic` parsing for the System info panel.
 
 ## Current Structure
 
@@ -59,10 +66,14 @@ TyroLabs_V2/
 |   |   +-- useNotesStore.ts
 |   |   +-- useNotesViews.ts
 |   |   +-- useToast.ts
+|   +-- components/tools/password/
+|   |   +-- PasswordPanel.tsx           (new — generator UI)
 |   +-- lib/
 |       +-- clips.ts
 |       +-- clipboard-store.ts
 |       +-- colors.ts
+|       +-- i18n.tsx                    (new — I18nProvider, useI18n)
+|       +-- strings.ts                  (new — FR/EN dictionary)
 |       +-- image-assets.ts
 |       +-- note-assets.ts
 |       +-- notes-conversion.ts
@@ -78,6 +89,7 @@ TyroLabs_V2/
         +-- error.rs
         +-- models.rs
         +-- services/
+        |   +-- app_settings.rs         (new — language preference)
         |   +-- store.rs
         |   +-- system.rs
         |   +-- tray.rs
@@ -85,11 +97,15 @@ TyroLabs_V2/
             +-- capture/
             +-- clipboard/
             +-- notes/
+            |   +-- mod.rs
+            |   +-- state.rs
+            |   +-- storage.rs
+            |   +-- commands.rs
+            |   +-- media.rs
+            +-- password/               (new tool)
                 +-- mod.rs
-                +-- state.rs
-                +-- storage.rs
                 +-- commands.rs
-                +-- media.rs
+                +-- wordlist.rs
 ```
 
 ## Backend Conventions
@@ -146,9 +162,20 @@ TyroLabs_V2/
 
 ## Product State
 
-- The app is an advanced clipboard manager with text, links, images and
-  favorites views.
+- The app is an advanced clipboard manager with text, links and images views.
+  The dedicated "Favorites" tab has been removed; pinned items now float to
+  the top of their original tab (see `useClipboardViews.ts:pinnedFirst`).
 - Collections are supported with drag and drop and persisted by the backend.
+- A Password generator tool ships its own tab (random charset and passphrase
+  modes, strength meter via `zxcvbn`).
+- The capture overlay supports two modes — "Image" (default, saves to clipboard
+  history) and "OCR" (extracts text via `Windows.Media.Ocr` and copies it to
+  the system clipboard via `arboard`).
+- The System drawer shows full diagnostics (network / system / hardware /
+  runtimes / processes), with per-line copy buttons and per-process kill.
+  The `SYS_INFO` overtitle has been removed.
+- UI is fully bilingual FR/EN via the new i18n layer; the language toggle
+  lives in Settings and is persisted under `app.settings`.
 - Images are stored under the app data directory and served through Tauri's
   `asset://` protocol.
 - Image garbage collection deletes files removed from history or truncated by
