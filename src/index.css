@@ -27,11 +27,16 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #27272a;
+  background: rgba(var(--accent-rgb, 59, 130, 246), 0.28);
   border-radius: 2px;
+  transition: background 0.15s ease;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+  background: rgba(var(--accent-rgb, 59, 130, 246), 0.55);
+}
+* {
+  scrollbar-color: rgba(var(--accent-rgb, 59, 130, 246), 0.28) transparent;
+  scrollbar-width: thin;
 }
 
 input::placeholder {

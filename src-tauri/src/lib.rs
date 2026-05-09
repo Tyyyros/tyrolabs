@@ -88,6 +88,7 @@ pub fn run() {
             notes::update_note_collection,
             notes::delete_note_collection,
             notes::save_note_asset_cmd,
+            notes::clip_image_to_note_asset,
             notes::get_note_asset_path,
             notes::export_note_markdown,
             notes::write_note_to_file,

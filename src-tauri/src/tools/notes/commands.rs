@@ -309,6 +309,28 @@ pub fn save_note_asset_cmd(
     Ok(SavedAsset { hash, ext })
 }
 
+/// Réutilise une image du presse-papier (`<app_data>/images/<hash>.png`) en
+/// l'enregistrant comme asset de note. `save_note_asset` déduplique par
+/// hash : si le même contenu est déjà présent dans `notes_assets/`, aucune
+/// écriture disque n'a lieu.
+#[tauri::command]
+pub fn clip_image_to_note_asset(app: AppHandle, hash: String) -> ToolResult<SavedAsset> {
+    use tauri::Manager;
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| ToolError::Message(format!("app_data_dir: {e}")))?;
+    let src = app_data.join("images").join(format!("{}.png", hash));
+    if !src.exists() {
+        return Err(ToolError::NotFound(format!(
+            "image clipboard introuvable: {hash}"
+        )));
+    }
+    let bytes = std::fs::read(&src)?;
+    let (hash, ext) = save_note_asset(&app, &bytes, "png")?;
+    Ok(SavedAsset { hash, ext })
+}
+
 #[tauri::command]
 pub fn get_note_asset_path(app: AppHandle, hash: String, ext: String) -> ToolResult<String> {
     let path = note_asset_path(&app, &hash, &ext)?;

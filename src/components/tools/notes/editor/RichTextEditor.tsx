@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 
 import { useTheme } from "../../../../lib/theme";
@@ -9,6 +8,7 @@ import { C, hexToRgba } from "../../../../lib/colors";
 import { Ic } from "../../../icons";
 import { SlashCommand } from "./extensions/SlashCommand";
 import { ImagePaste } from "./extensions/ImagePaste";
+import { ResizableImage } from "./extensions/ResizableImage";
 import { FloatingToolbar } from "./FloatingToolbar";
 import type { SlashItem } from "./SlashMenu";
 
@@ -104,7 +104,7 @@ export function RichTextEditor({ value, onChange }: Props) {
       Placeholder.configure({
         placeholder: "Tapez '/' pour les commandes…",
       }),
-      Image.configure({ inline: false, allowBase64: false }),
+      ResizableImage.configure({ inline: false, allowBase64: false }),
       ImagePaste,
       SlashCommand.configure({ items: slashItems }),
     ],
@@ -185,9 +185,56 @@ export function RichTextEditor({ value, onChange }: Props) {
         }
         .tyrolabs-rte-content pre code { background: transparent; padding: 0; }
         .tyrolabs-rte-content img {
+          display: block;
           max-width: 100%;
           border-radius: 6px;
+        }
+        .tyrolabs-resizable-image {
+          position: relative;
+          display: inline-block;
           margin: 6px 0;
+          max-width: 100%;
+          line-height: 0;
+        }
+        .tyrolabs-resizable-image img {
+          max-width: 100%;
+          width: auto;
+          height: auto;
+        }
+        /* Default cap when no explicit width persisted yet — keeps newly
+           inserted images sensibly small (Notion / Word style). Once the
+           user drags the handle, the inline style.width takes over and
+           this cap no longer applies. */
+        .tyrolabs-resizable-image img:not([style*="width"]) {
+          max-height: 360px;
+        }
+        .tyrolabs-resize-handle {
+          position: absolute;
+          right: -4px;
+          bottom: -4px;
+          width: 14px;
+          height: 14px;
+          border-radius: 4px;
+          background: ${theme.accent};
+          border: 2px solid ${theme.bg};
+          cursor: nwse-resize;
+          opacity: 0;
+          transition: opacity 0.12s ease;
+          touch-action: none;
+          z-index: 1;
+        }
+        .tyrolabs-resizable-image:hover .tyrolabs-resize-handle,
+        .tyrolabs-resizable-image.is-resizing .tyrolabs-resize-handle {
+          opacity: 1;
+        }
+        .tyrolabs-resizable-image.is-resizing img {
+          /* Pendant le drag, on ignore le cap par défaut pour suivre le pointeur. */
+          max-height: none;
+        }
+        .tyrolabs-resizable-image.ProseMirror-selectednode {
+          outline: 2px solid ${hexToRgba(theme.accent, 0.6)};
+          outline-offset: 2px;
+          border-radius: 6px;
         }
         .tyrolabs-rte-content p.is-editor-empty:first-child::before {
           content: attr(data-placeholder);

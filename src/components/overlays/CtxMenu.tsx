@@ -13,6 +13,7 @@ export interface CtxHandlers {
   delete: () => void;
   copyPlain?: () => void;
   open?: () => void;
+  addToNote: () => void;
 }
 
 interface Props {
@@ -52,6 +53,12 @@ export function CtxMenu({ x, y, item, itemType, handlers }: Props) {
   );
   const pinLabel = isPinned ? t("ctx.unpin") : t("ctx.pin");
 
+  const addToNoteRow: RowDef = {
+    label: t("ctx.addToNote"),
+    icon: <Ic.Note width={17} height={17} strokeWidth={2.2} />,
+    action: handlers.addToNote,
+  };
+
   let rows: (RowDef | null)[];
   if (itemType === "text") {
     rows = [
@@ -60,6 +67,7 @@ export function CtxMenu({ x, y, item, itemType, handlers }: Props) {
       { label: pinLabel, icon: pinIcon, action: handlers.pin },
       null,
       { label: t("ctx.copyPlain"), icon: <Ic.Clip width={17} height={17} strokeWidth={2.2} />, action: handlers.copyPlain ?? (() => {}) },
+      addToNoteRow,
       { label: t("ctx.delete"), icon: <Ic.Trash width={17} height={17} strokeWidth={2.2} />, action: handlers.delete, danger: true },
     ];
   } else if (itemType === "image") {
@@ -69,6 +77,7 @@ export function CtxMenu({ x, y, item, itemType, handlers }: Props) {
       { label: t("ctx.rename"), icon: <Ic.Edit width={17} height={17} strokeWidth={2.2} />, action: handlers.edit },
       { label: pinLabel, icon: pinIcon, action: handlers.pin },
       null,
+      addToNoteRow,
       { label: t("ctx.delete"), icon: <Ic.Trash width={17} height={17} strokeWidth={2.2} />, action: handlers.delete, danger: true },
     ];
   } else {
@@ -78,6 +87,7 @@ export function CtxMenu({ x, y, item, itemType, handlers }: Props) {
       { label: t("ctx.edit"), icon: <Ic.Edit width={17} height={17} strokeWidth={2.2} />, action: handlers.edit },
       { label: pinLabel, icon: pinIcon, action: handlers.pin },
       null,
+      addToNoteRow,
       { label: t("ctx.delete"), icon: <Ic.Trash width={17} height={17} strokeWidth={2.2} />, action: handlers.delete, danger: true },
     ];
   }

@@ -108,6 +108,19 @@ export const STRINGS = {
     "ctx.delete": "Supprimer",
     "ctx.open": "Ouvrir",
     "ctx.openInPaint": "Ouvrir dans Paint",
+    "ctx.addToNote": "Ajouter à une note",
+
+    // Note picker (modal)
+    "notePicker.title": "Ajouter à une note",
+    "notePicker.search": "Rechercher une note…",
+    "notePicker.create": "+ Nouvelle note",
+    "notePicker.empty": "Aucune note",
+    "notePicker.recent": "Récentes",
+    "notePicker.created": "Note créée et item ajouté ✓",
+    "notePicker.createdMany": "Note créée et {count} éléments ajoutés ✓",
+    "notePicker.appended": "Item ajouté à \"{title}\" ✓",
+    "notePicker.appendedMany": "{count} éléments ajoutés à \"{title}\" ✓",
+    "notePicker.failed": "Échec de l'ajout : {error}",
 
     // Editor panel
     "editor.title.text": "Éditer le texte",
@@ -329,6 +342,19 @@ export const STRINGS = {
     "ctx.delete": "Delete",
     "ctx.open": "Open",
     "ctx.openInPaint": "Open in Paint",
+    "ctx.addToNote": "Add to a note",
+
+    // Note picker (modal)
+    "notePicker.title": "Add to a note",
+    "notePicker.search": "Search a note…",
+    "notePicker.create": "+ New note",
+    "notePicker.empty": "No notes",
+    "notePicker.recent": "Recent",
+    "notePicker.created": "Note created and item added ✓",
+    "notePicker.createdMany": "Note created and {count} items added ✓",
+    "notePicker.appended": "Item added to \"{title}\" ✓",
+    "notePicker.appendedMany": "{count} items added to \"{title}\" ✓",
+    "notePicker.failed": "Failed to add: {error}",
 
     // Editor panel
     "editor.title.text": "Edit text",

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 
 import type { NotesStore } from "../../../hooks/useNotesStore";
@@ -14,9 +14,17 @@ interface Props {
   store: NotesStore;
   search: string;
   fire: (msg: string) => void;
+  pendingOpenNoteId?: string | null;
+  onPendingOpenConsumed?: () => void;
 }
 
-export function NotesPanel({ store, search, fire }: Props) {
+export function NotesPanel({
+  store,
+  search,
+  fire,
+  pendingOpenNoteId,
+  onPendingOpenConsumed,
+}: Props) {
   const { t } = useI18n();
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null);
   const [activeTags, setActiveTags] = useState<string[]>([]);
@@ -40,6 +48,14 @@ export function NotesPanel({ store, search, fire }: Props) {
   if (openNoteId && !openNote) {
     setOpenNoteId(null);
   }
+
+  // Ouverture programmatique depuis l'extérieur (ex. clic-droit "Ajouter à
+  // une note" dans le menu contextuel des clips).
+  useEffect(() => {
+    if (!pendingOpenNoteId) return;
+    setOpenNoteId(pendingOpenNoteId);
+    onPendingOpenConsumed?.();
+  }, [pendingOpenNoteId, onPendingOpenConsumed]);
 
   const handleCreate = useCallback(async () => {
     try {

@@ -31,7 +31,9 @@
           "$APPDATA/images/**",
           "$APPDATA/images/**/*",
           "$APPDATA/captures/**",
-          "$APPDATA/captures/**/*"
+          "$APPDATA/captures/**/*",
+          "$APPDATA/notes_assets/**",
+          "$APPDATA/notes_assets/**/*"
         ]
       }
     }

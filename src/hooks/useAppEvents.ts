@@ -33,11 +33,17 @@ export function useTauriAppEvents({
   onCaptureDone,
   onOcrDone,
   onOcrError,
+  onTrayCaptureNormal,
+  onTrayCaptureDelayed,
+  onTrayCaptureOcr,
 }: {
   onOpenSettings: () => void;
   onCaptureDone: () => void;
   onOcrDone: (count: number) => void;
   onOcrError: (kind: "empty" | "failed", message?: string) => void;
+  onTrayCaptureNormal: () => void;
+  onTrayCaptureDelayed: () => void;
+  onTrayCaptureOcr: () => void;
 }) {
   useEffect(() => {
     const unlisten = listen("open-settings", onOpenSettings);
@@ -65,6 +71,21 @@ export function useTauriAppEvents({
     );
     return () => { unlisten.then((fn) => fn()); };
   }, [onOcrError]);
+
+  useEffect(() => {
+    const unlisten = listen("tray://capture-normal", onTrayCaptureNormal);
+    return () => { unlisten.then((fn) => fn()); };
+  }, [onTrayCaptureNormal]);
+
+  useEffect(() => {
+    const unlisten = listen("tray://capture-delayed", onTrayCaptureDelayed);
+    return () => { unlisten.then((fn) => fn()); };
+  }, [onTrayCaptureDelayed]);
+
+  useEffect(() => {
+    const unlisten = listen("tray://capture-ocr", onTrayCaptureOcr);
+    return () => { unlisten.then((fn) => fn()); };
+  }, [onTrayCaptureOcr]);
 }
 
 export function useCaptureShortcut(onCapture: () => void) {
