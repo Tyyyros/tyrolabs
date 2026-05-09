@@ -87,13 +87,13 @@ TyroLabs_V2/
         ├── error.rs                     # ToolError + ToolResult<T>
         ├── models.rs                    # Clip, Collection, Note, NoteFormat, NotePatch
         ├── services/
-        │   ├── app_settings.rs          # get/set_app_settings (langue, clé `app.settings`)
+        │   ├── app_settings.rs          # get/set_app_settings (langue, thème, sidebar_order — patch partiel)
         │   ├── store.rs                 # STORE_FILE + migrate_key
         │   ├── system.rs                # diagnostics OS + IP/MAC/DNS/GPU/Java/processes
         │   └── tray.rs                  # tray menu
         └── tools/
             ├── capture/                 # capture d'écran (mode image|ocr piloté par la sidebar) + ocr_capture_area (Windows.Media.Ocr)
-            ├── clipboard/               # historique + collections (3 silos)
+            ├── clipboard/               # historique + collections (3 silos) + watcher multi-format (CF_DIB, PNG/JPEG/GIF/WebP/BMP/TIFF custom, CF_HDROP)
             ├── notes/                   # CRUD notes + collections + médias + export
             │   ├── mod.rs
             │   ├── state.rs             # NotesState : Mutex<Vec<Note>> + Mutex<Vec<Collection>>
@@ -170,7 +170,46 @@ processus listés peuvent être terminés (commande `kill_process`). L'IP
 publique est résolue en lazy via `get_public_ip` (PowerShell + ipify).
 
 Le service **`services/app_settings.rs`** persiste les préférences globales
-(langue) sous la clé store `app.settings`, lue par `I18nProvider` au boot.
+(langue, thème, ordre de la sidebar) sous la clé store `app.settings`. Le
+setter accepte un `AppSettingsPatch` avec champs optionnels et merge dans
+l'état courant — `I18nProvider`, `App` (thème) et `Sidebar` (ordre)
+hydratent indépendamment au boot et persistent leurs changements sans se
+marcher dessus.
+
+La **sidebar** (`layout/Sidebar.tsx`) est unifiée : un seul flot
+drag-to-reorder via `@dnd-kit/sortable`, pas de séparateur. L'ordre est
+stocké dans `app.settings.sidebar_order` ; les ids inconnus au chargement
+sont ignorés et les canoniques manquants append en fin de liste (résilient
+aux ajouts d'outils futurs). Le menu chevron du Camera est rendu via
+`createPortal` à `document.body` pour échapper à l'`overflow-x: hidden`
+de la sidebar.
+
+Le **menu tray** (`services/tray.rs`) est construit au boot dans la langue
+persistée et expose un sous-menu Capture (Normale / Différée / OCR) qui
+émet `tray://capture-*` vers la fenêtre `main`.
+
+L'**ajout d'un clip à une note** se fait via le menu contextuel des items
+clipboard (texte / lien / image). Modal `NotePickerModal` (overlay centré
+style Settings) avec recherche + récentes + "+ Nouvelle note". Multi-
+sélection : tous les items du même type sont append en un seul update via
+`appendToNoteBody` (pure, format-aware : TipTap JSON ou Markdown). Les
+images du presse-papier sont réutilisées côté backend par
+`clip_image_to_note_asset(hash)` (déduplication par hash dans
+`save_note_asset`).
+
+Les **images dans les notes** sont redimensionnables via l'extension
+TipTap custom `ResizableImage` (override du node `image`, attribut `width`
+persisté + NodeView avec poignée bottom-right style Notion). Le scope
+`assetProtocol` de `tauri.conf.json` couvre `$APPDATA/notes_assets/**`.
+
+Le **watcher du presse-papier** (`tools/clipboard/watcher.rs` +
+`win_files.rs`, Windows-only) capture les images depuis trois sources, par
+ordre de priorité : (1) CF_DIB / CF_DIBV5 via `arboard::get_image()`,
+(2) formats custom encodés (`PNG`, `image/png`, `image/jpeg`, `JFIF`,
+`image/gif`, `GIF`, `image/webp`, `image/bmp`, `image/tiff`) lus via
+`RegisterClipboardFormatW` + `GlobalLock`, (3) CF_HDROP (Ctrl+C sur
+fichier image dans l'Explorateur). Les bytes encodés sont décodés via
+`image::load_from_memory` (auto-détection par magic bytes).
 
 ## État du repo
 

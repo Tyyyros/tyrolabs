@@ -6,8 +6,14 @@ TypeScript and Vite 7.
 ## Features
 
 - Clipboard history for text, code-like snippets, links and images. Pinned
-  items float to the top of their tab (no separate "Favorites" tab).
-- Notes module with a Rich Text block editor (slash menu, floating toolbar), bento dashboard, tags, full-text search, per-note collections, and Markdown export.
+  items float to the top of their tab (no separate "Favorites" tab). The
+  watcher captures images from CF_DIB (decoded bitmaps), the encoded
+  custom formats `PNG` / `image/png` / `image/jpeg` / `JFIF` / `image/gif` /
+  `GIF` / `image/webp` / `image/bmp` / `image/tiff` (modern web apps,
+  Notion, Claude, Slack, Discord), and CF_HDROP file lists (Ctrl+C on an
+  image file in Explorer).
+- Notes module with a Rich Text block editor (slash menu, floating toolbar), bento dashboard, tags, full-text search, per-note collections, and Markdown export. **Resizable images**: paste an image into a note (or use "Add to a note" from a clip) and drag the bottom-right handle to resize, Notion / Word style. Width persists in the document.
+- **Add to a note** from the right-click context menu on any clip (text, link, image). Opens a centered picker with search + recent notes + "+ New note". Multi-selection of same-type items is honored — every selected clip is appended in one update, in visible order.
 - Password generator tool: random charset mode (length, classes, custom chars,
   ambiguous-char filter) and passphrase mode (EFF-style wordlist, separator,
   digits, symbol). Strength meter via `zxcvbn`.
@@ -29,7 +35,15 @@ TypeScript and Vite 7.
 - Markdown export through the Tauri save dialog.
 - Windows startup launch control through the official Tauri autostart plugin.
 - Custom title bar, tray integration and system info drawer.
-- Theme switching through local theme tokens.
+- Theme switching through local theme tokens. The selected theme and
+  language are persisted across launches; scrollbars follow the active
+  accent color.
+- **Unified, sortable sidebar**: every navigation icon — clipboard tabs,
+  Notes, Password, Capture (with normal/delayed/OCR sub-options), Settings,
+  System — lives in a single drag-to-reorder column. Order persists per
+  user.
+- **System tray menu**: redesigned with a Capture submenu (Normal / Delayed
+  / OCR) and labels in the active language at boot.
 
 ## Stack
 

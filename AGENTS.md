@@ -179,8 +179,41 @@ TyroLabs_V2/
 - The System drawer shows full diagnostics (network / system / hardware /
   runtimes / processes), with per-line copy buttons and per-process kill.
   The `SYS_INFO` overtitle has been removed.
-- UI is fully bilingual FR/EN via the new i18n layer; the language toggle
-  lives in Settings and is persisted under `app.settings`.
+- UI is fully bilingual FR/EN via the new i18n layer; both the language
+  AND the theme are persisted under `app.settings` via a partial-patch
+  setter (`AppSettingsPatch`) so changing one doesn't clobber the other.
+  The same store key holds `sidebar_order` for the unified sortable sidebar.
+- **Sidebar** is a single drag-to-reorder list (no separators, no static
+  bottom block). Every icon — tab buttons, Capture, OCR, Settings, System —
+  is reorderable via `@dnd-kit/sortable` with a 6 px activation distance so
+  click and drag don't conflict. Order persists per user. The Capture
+  chevron submenu is rendered through `createPortal` to escape the
+  sidebar's `overflow-x: hidden`.
+- The system **tray menu** is rebuilt at boot in the active language and
+  exposes a Capture submenu (Normal / Delayed / OCR). Capture entries emit
+  `tray://capture-*` events the frontend routes to the same handlers as
+  the sidebar.
+- **Add a clip to a note** lives in the right-click context menu of every
+  clipboard item. A modal picker (`NotePickerModal`) lists existing notes,
+  exposes "+ New note", and the chosen note opens in the editor with the
+  clip(s) appended. Multi-selection is honored: all same-type selected
+  clips are appended in one update via `appendToNoteBody` (pure function,
+  format-aware: TipTap JSON for RichText, Markdown otherwise). Clipboard
+  images are reused server-side via `clip_image_to_note_asset(hash)` which
+  delegates to `save_note_asset` for hash-based deduplication.
+- **Resizable images in notes**: a custom `ResizableImage` TipTap
+  extension (overrides the official Image node) adds a `width` attribute
+  and a NodeView with a Notion-style bottom-right resize handle. Default
+  cap is `max-height: 360px` until the user resizes. The Tauri asset
+  protocol scope must include `$APPDATA/notes_assets/**` for these images
+  to render.
+- The clipboard watcher polls every 800 ms and tries multiple sources in
+  order: CF_DIB via `arboard::get_image()`, then a list of encoded custom
+  formats (`PNG`, `image/png`, `image/jpeg`, `JFIF`, `image/gif`, `GIF`,
+  `image/webp`, `image/bmp`, `image/tiff`) via `win_files`, then CF_HDROP
+  file paths (Explorer copy) for the same set of extensions. Decoding and
+  re-encoding to PNG is done via the `image` crate; `image::load_from_memory`
+  detects the actual format by magic bytes.
 - Images are stored under the app data directory and served through Tauri's
   `asset://` protocol.
 - Image garbage collection deletes files removed from history or truncated by
