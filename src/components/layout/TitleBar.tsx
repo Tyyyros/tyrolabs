@@ -4,8 +4,9 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useTheme } from "../../lib/theme";
 import { useI18n } from "../../lib/i18n";
 import { C } from "../../lib/colors";
-import { Ic, TyroLogo } from "../icons";
+import { Ic } from "../icons";
 import { WinBtn } from "./WinBtn";
+import { AnimatedLogo } from "./AnimatedLogo";
 
 const win = getCurrentWindow();
 
@@ -46,59 +47,19 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
     >
       {/* Left section: Logo + Separator */}
       <div data-tauri-drag-region style={{ display: "flex", alignItems: "center", gap: 12, pointerEvents: "none" }}>
-        {/* Logo */}
+        <AnimatedLogo />
+
+        {/* Separator */}
         <div
           data-tauri-drag-region
+          aria-hidden="true"
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            cursor: "default",
+            width: 1,
+            height: 24,
+            background: C.border,
+            flexShrink: 0,
           }}
-        >
-        <span data-tauri-drag-region style={{ display: "inline-flex" }}>
-          <TyroLogo size={24} color={theme.accent} />
-        </span>
-
-        <span
-          data-tauri-drag-region
-          style={{
-            fontFamily: theme.fontMono,
-            fontSize: 14,
-            fontWeight: 500,
-            opacity: 0.9,
-            display: "flex",
-            alignItems: "center",
-            gap: 0,
-          }}
-        >
-          <span data-tauri-drag-region style={{ color: theme.accent, opacity: 0.8 }}>{theme.logoPrefix}</span>
-          <span
-            data-tauri-drag-region
-            style={{
-              display: "inline-block",
-              letterSpacing: theme.logoLetterSpacing,
-              color: C.t1,
-            }}
-          >
-            TYROLABS
-          </span>
-
-        <span data-tauri-drag-region style={{ color: theme.accent, opacity: 0.8 }}>{theme.logoSuffix}</span>
-        </span>
-      </div>
-
-      {/* Separator */}
-      <div
-        data-tauri-drag-region
-        aria-hidden="true"
-        style={{
-          width: 1,
-          height: 24,
-          background: C.border,
-          flexShrink: 0,
-        }}
-      />
+        />
       </div>
 
       {/* Search Container (Flex center — constrained) */}
