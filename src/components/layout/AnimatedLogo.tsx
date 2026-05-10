@@ -36,7 +36,6 @@ export function AnimatedLogo() {
 
   return (
     <div
-      data-tauri-drag-region
       data-logo-anim={variant}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
@@ -50,8 +49,7 @@ export function AnimatedLogo() {
       }}
     >
       <span
-        data-tauri-drag-region
-        style={{
+          style={{
           display: "inline-flex",
           position: "relative",
           width: 24,
@@ -68,8 +66,7 @@ export function AnimatedLogo() {
       </span>
 
       <span
-        data-tauri-drag-region
-        style={{
+          style={{
           fontFamily: theme.fontMono,
           fontSize: 14,
           fontWeight: 500,
@@ -81,11 +78,11 @@ export function AnimatedLogo() {
           padding: "2px 4px",
         }}
       >
-        <span data-tauri-drag-region style={{ color: theme.accent, opacity: 0.8 }}>{theme.logoPrefix}</span>
+        <span style={{ color: theme.accent, opacity: 0.8 }}>{theme.logoPrefix}</span>
 
         <TextCore variant={variant} hover={hover} theme={theme} />
 
-        <span data-tauri-drag-region style={{ color: theme.accent, opacity: 0.8 }}>{theme.logoSuffix}</span>
+        <span style={{ color: theme.accent, opacity: 0.8 }}>{theme.logoSuffix}</span>
 
         {hover && variant === "lockon" && <LockonBrackets accent={theme.accent} />}
         {hover && variant === "lockon" && <ScanLine accent={theme.accent} duration="1.4s" />}
@@ -110,7 +107,7 @@ function TextCore({ variant, hover, theme }: { variant: Variant; hover: boolean;
   };
 
   if (!hover) {
-    return <span data-tauri-drag-region style={baseStyle}>TYROLABS</span>;
+    return <span style={baseStyle}>TYROLABS</span>;
   }
 
   if (variant === "lava") {
