@@ -318,6 +318,146 @@ button {
   75% { transform: rotate(6deg); }
 }
 
+/* ═══ V2 logo animations (showcase: obsidian/carbon/arctic/sakura) ════ */
+
+/* obsidian — Lava */
+@keyframes logo-v2-lava-rise-front {
+  0% { transform: translateY(34px); }
+  35% { transform: translateY(8px); }
+  55% { transform: translateY(-4px); }
+  75% { transform: translateY(10px); }
+  100% { transform: translateY(34px); }
+}
+@keyframes logo-v2-lava-rise-back {
+  0% { transform: translateY(30px); }
+  40% { transform: translateY(6px); }
+  60% { transform: translateY(0); }
+  80% { transform: translateY(10px); }
+  100% { transform: translateY(30px); }
+}
+@keyframes logo-v2-lava-star {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.85)) drop-shadow(0 0 14px rgba(239, 68, 68, 0.65));
+  }
+  50% {
+    transform: scale(1.14);
+    filter: drop-shadow(0 0 16px rgba(245, 158, 11, 1)) drop-shadow(0 0 28px rgba(239, 68, 68, 0.95));
+  }
+}
+@keyframes logo-v2-lava-text-flicker {
+  0%, 100% { opacity: 0.95; }
+  45% { opacity: 1; }
+  55% { opacity: 0.82; }
+}
+@keyframes logo-v2-lava-ember {
+  0% { transform: translate(0, 0); opacity: 0; }
+  15% { opacity: 1; }
+  70% { opacity: 0.85; }
+  100% { transform: translate(var(--ember-dx, 4px), -36px); opacity: 0; }
+}
+
+/* carbon — Thunder */
+@keyframes logo-v2-thunder-flash {
+  0%, 100% { opacity: 0; }
+  3% { opacity: 0.55; }
+  5% { opacity: 0; }
+  44% { opacity: 0.7; }
+  46% { opacity: 0; }
+  82% { opacity: 0.35; }
+  83% { opacity: 0; }
+}
+@keyframes logo-v2-thunder-bolt {
+  0%, 100% { opacity: 0; }
+  2% { opacity: 1; }
+  4% { opacity: 0.3; }
+  5% { opacity: 1; }
+  8% { opacity: 0; }
+}
+@keyframes logo-v2-thunder-star {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-0.6px, 0.6px); }
+  50% { transform: translate(0.6px, -0.6px); }
+  75% { transform: translate(-0.6px, -0.6px); }
+}
+@keyframes logo-v2-thunder-shake {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-0.6px, 0.6px); }
+  40% { transform: translate(0.6px, 0); }
+  60% { transform: translate(0, -0.6px); }
+  80% { transform: translate(-0.4px, -0.4px); }
+}
+@keyframes logo-v2-thunder-text {
+  0%, 100% { opacity: 1; }
+  3% { opacity: 0.55; }
+  5% { opacity: 1; }
+  44% { opacity: 0.7; }
+  46% { opacity: 1; }
+}
+
+/* arctic — Snow */
+@keyframes logo-v2-snow-fall {
+  0% { transform: translate(0, -4px); opacity: 0; }
+  12% { opacity: 0.9; }
+  88% { opacity: 0.9; }
+  100% { transform: translate(var(--snow-drift, 6px), 38px); opacity: 0; }
+}
+@keyframes logo-v2-snow-star {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes logo-v2-snow-bg {
+  0%, 100% { opacity: 0.75; }
+  50% { opacity: 1; }
+}
+@keyframes logo-v2-snow-text {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 220% 50%; }
+}
+@keyframes logo-v2-snow-glow {
+  0%, 100% {
+    text-shadow: 0 0 6px rgba(255, 255, 255, 0.6), 0 0 12px rgba(34, 211, 238, 0.4);
+  }
+  50% {
+    text-shadow: 0 0 12px rgba(255, 255, 255, 0.95), 0 0 22px rgba(34, 211, 238, 0.7);
+  }
+}
+@keyframes logo-v2-snow-drift {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-0.5px); }
+}
+
+/* sakura — Cherry blossom storm */
+@keyframes logo-v2-sakura-petal {
+  0% { transform: translate(0, -8px) rotate(0deg); opacity: 0; }
+  15% { opacity: 0.95; }
+  85% { opacity: 0.95; }
+  100% {
+    transform: translate(var(--sakura-dx, 24px), 38px) rotate(var(--sakura-rot, 220deg));
+    opacity: 0;
+  }
+}
+@keyframes logo-v2-sakura-star {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.1) rotate(10deg); }
+}
+@keyframes logo-v2-sakura-bg {
+  0%, 100% { opacity: 0.65; }
+  50% { opacity: 1; }
+}
+@keyframes logo-v2-sakura-text {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 220% 50%; }
+}
+@keyframes logo-v2-sakura-glow {
+  0%, 100% { text-shadow: 0 0 6px rgba(244, 114, 182, 0.4); }
+  50% {
+    text-shadow:
+      0 0 16px rgba(244, 114, 182, 0.75),
+      0 0 28px rgba(236, 72, 153, 0.45);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-logo-anim] *,
   [data-logo-anim] {
