@@ -217,7 +217,7 @@ Autostart is managed by the official Tauri autostart plugin. The frontend uses
 
 ## Releases Link
 
-https://github.com/Tyyyros/tyrolabs/releases/tag/v0.1.6
+https://github.com/Tyyyros/tyrolabs/releases
 
 ## Author
 
