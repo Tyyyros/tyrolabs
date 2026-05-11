@@ -1,6 +1,6 @@
 //! Commandes système transverses (info OS, ouverture de fichiers, fenêtre,
-//! diagnostics réseau / hardware / runtimes / processus). Réutilisables par
-//! tous les outils.
+//! diagnostics réseau / hardware / runtimes). Réutilisables par tous les
+//! outils.
 //!
 //! Les diagnostics matériels (`gpus`, `javas`, `dns_servers`, MAC) reposent
 //! sur `wmic`/`ipconfig`/`reg query` parsés en best-effort : si une commande
@@ -11,9 +11,11 @@ use serde::Serialize;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::process::Command;
-use sysinfo::{Pid, ProcessesToUpdate, System};
+use sysinfo::System;
 
 use crate::error::{ToolError, ToolResult};
+
+const MAX_NETWORK_ITEMS: usize = 2;
 
 #[tauri::command]
 pub fn is_production_build() -> bool {
@@ -140,8 +142,22 @@ pub fn get_system_info() -> SysInfoResult {
 fn collect_local_ips() -> Vec<String> {
     let mut ips: Vec<String> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
+
+    // L'IP de la route principale (Wi-Fi/Ethernet active) en premier ; sinon
+    // on tombe simplement sur l'ordre d'énumération des interfaces.
+    if let Ok(primary) = local_ip_address::local_ip() {
+        if !primary.is_loopback() {
+            let s = primary.to_string();
+            seen.insert(s.clone());
+            ips.push(s);
+        }
+    }
+
     if let Ok(list) = local_ip_address::list_afinet_netifas() {
         for (_iface, ip) in list {
+            if ips.len() >= MAX_NETWORK_ITEMS {
+                break;
+            }
             if ip.is_loopback() {
                 continue;
             }
@@ -166,6 +182,9 @@ fn parse_macs(ipconfig: &str) -> Vec<String> {
     let mut macs: Vec<String> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     for raw in ipconfig.lines() {
+        if macs.len() >= MAX_NETWORK_ITEMS {
+            break;
+        }
         let line = raw.trim();
         if line.contains("Physical Address")
             || line.contains("Adresse physique")
@@ -328,65 +347,6 @@ fn run_java_version(path: &PathBuf) -> Option<String> {
     None
 }
 
-#[derive(Serialize)]
-pub struct ProcessInfo {
-    pub pid: u32,
-    pub name: String,
-    pub cpu_pct: f32,
-    pub mem_mb: u64,
-}
-
-#[tauri::command]
-pub fn list_top_processes(limit: usize) -> Vec<ProcessInfo> {
-    let mut sys = System::new_all();
-    sys.refresh_processes(ProcessesToUpdate::All, true);
-    // Premier refresh donne 0% CPU pour tous → un 2e refresh après 200ms
-    // calcule un delta réaliste sur cette fenêtre.
-    std::thread::sleep(std::time::Duration::from_millis(200));
-    sys.refresh_processes(ProcessesToUpdate::All, true);
-
-    let mut procs: Vec<ProcessInfo> = sys
-        .processes()
-        .iter()
-        .filter(|(pid, _)| pid.as_u32() != 0)
-        .map(|(pid, p)| ProcessInfo {
-            pid: pid.as_u32(),
-            name: p.name().to_string_lossy().to_string(),
-            cpu_pct: p.cpu_usage(),
-            mem_mb: p.memory() / 1024 / 1024,
-        })
-        .collect();
-
-    procs.sort_by(|a, b| {
-        b.cpu_pct
-            .partial_cmp(&a.cpu_pct)
-            .unwrap_or(std::cmp::Ordering::Equal)
-            .then(b.mem_mb.cmp(&a.mem_mb))
-    });
-    procs.truncate(limit.max(1));
-    procs
-}
-
-#[tauri::command]
-pub fn kill_process(pid: u32) -> ToolResult<()> {
-    if pid == 0 {
-        return Err(ToolError::InvalidInput("invalid pid".into()));
-    }
-    let current_pid = std::process::id();
-    if pid == current_pid {
-        return Err(ToolError::InvalidInput("refusing to kill self".into()));
-    }
-    let mut sys = System::new();
-    sys.refresh_processes(ProcessesToUpdate::All, true);
-    let process = sys
-        .process(Pid::from_u32(pid))
-        .ok_or_else(|| ToolError::NotFound(format!("pid {pid}")))?;
-    if !process.kill() {
-        return Err(ToolError::Message(format!("failed to kill {pid}")));
-    }
-    Ok(())
-}
-
 #[tauri::command]
 pub async fn get_public_ip() -> ToolResult<String> {
     // PowerShell évite d'ajouter reqwest comme dépendance HTTP. Si PowerShell
@@ -425,12 +385,5 @@ mod tests {
         assert!(looks_like_ip("fe80::1"));
         assert!(!looks_like_ip("hello"));
         assert!(!looks_like_ip(""));
-    }
-
-    #[test]
-    fn list_top_processes_excludes_pid_zero() {
-        let procs = list_top_processes(20);
-        assert!(procs.iter().all(|p| p.pid != 0));
-        assert!(!procs.is_empty());
     }
 }

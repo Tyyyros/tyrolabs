@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useTheme } from "../../lib/theme";
 import { useI18n } from "../../lib/i18n";
-import { C } from "../../lib/colors";
+import { C, hexToRgba } from "../../lib/colors";
 import { Ic } from "../icons";
 import { WinBtn } from "./WinBtn";
 import { AnimatedLogo } from "./AnimatedLogo";
@@ -21,17 +21,29 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
   const theme = useTheme();
   const { t } = useI18n();
   const [searchFocused, setSearchFocused] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     invoke("set_always_on_top", { value: pinned })
       .catch((e) => console.error("[Pin] invoke FAILED:", e));
   }, [pinned]);
 
+  const onTitlebarPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!searchFocused) return;
+    const target = e.target as HTMLElement;
+    if (target.closest("[data-search-container]")) return;
+    if (target.closest("[data-window-controls]")) return;
+    inputRef.current?.blur();
+  };
+
+  const restingBorder = hexToRgba(theme.accent, 0.35);
+
 
 
   return (
     <div
       data-tauri-drag-region
+      onPointerDown={onTitlebarPointerDown}
       style={{
         height: 52,
         background: "var(--sidebar)",
@@ -75,16 +87,16 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
         }}
       >
         <div
+          data-search-container
           style={{
             width: searchFocused || search ? 320 : 160,
-            borderColor: searchFocused ? theme.accent : C.border,
             transition: "all 0.25s ease-out",
             maxWidth: "100%",
             display: "flex",
             alignItems: "center",
             gap: 10,
             background: "var(--row-hov)",
-            border: `1px solid ${searchFocused ? theme.accent : C.border}`,
+            border: `1px solid ${searchFocused ? theme.accent : restingBorder}`,
             borderRadius: 8,
             padding: "6px 12px",
             overflow: "hidden",
@@ -92,8 +104,16 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
             pointerEvents: "auto",
           }}
         >
-          <Ic.Search width={14} height={14} style={{ color: searchFocused ? theme.accent : C.t3, flexShrink: 0 }} />
+          <Ic.Search
+            width={14}
+            height={14}
+            style={{
+              color: searchFocused ? theme.accent : hexToRgba(theme.accent, 0.7),
+              flexShrink: 0,
+            }}
+          />
           <input
+            ref={inputRef}
             value={search}
             onChange={(e) => onSearch(e.target.value)}
             onFocus={() => setSearchFocused(true)}
@@ -134,6 +154,7 @@ export function TitleBar({ pinned, onPin, search, onSearch }: Props) {
       {/* Controls */}
       <div
         data-tauri-drag-region
+        data-window-controls
         style={{
           display: "flex",
           alignItems: "stretch",

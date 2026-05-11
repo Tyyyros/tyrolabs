@@ -7,6 +7,8 @@ import { C, hexToRgba } from "../../lib/colors";
 import { Ic } from "../icons";
 import { WinBtn } from "../layout/WinBtn";
 
+const MAX_NETWORK_ITEMS = 2;
+
 interface DiskInfo {
   name: string;
   total_gb: number;
@@ -37,13 +39,6 @@ interface SysInfo {
   app_version: string;
 }
 
-interface ProcessInfo {
-  pid: number;
-  name: string;
-  cpu_pct: number;
-  mem_mb: number;
-}
-
 type PublicIpStatus = "loading" | "ok" | "error";
 
 export function SysDrawer({ onClose }: { onClose: () => void }) {
@@ -54,9 +49,6 @@ export function SysDrawer({ onClose }: { onClose: () => void }) {
   const [publicIp, setPublicIp] = useState<{ status: PublicIpStatus; value?: string }>({
     status: "loading",
   });
-  const [procs, setProcs] = useState<ProcessInfo[]>([]);
-  const [procsLoading, setProcsLoading] = useState(false);
-  const [confirmKill, setConfirmKill] = useState<number | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,16 +57,7 @@ export function SysDrawer({ onClose }: { onClose: () => void }) {
     invoke<string>("get_public_ip")
       .then((value) => setPublicIp({ status: "ok", value }))
       .catch(() => setPublicIp({ status: "error" }));
-    refreshProcs();
   }, []);
-
-  const refreshProcs = () => {
-    setProcsLoading(true);
-    invoke<ProcessInfo[]>("list_top_processes", { limit: 12 })
-      .then(setProcs)
-      .catch(console.error)
-      .finally(() => setProcsLoading(false));
-  };
 
   const handleCopy = (key: string, value: string) => {
     if (!value) return;
@@ -85,18 +68,6 @@ export function SysDrawer({ onClose }: { onClose: () => void }) {
         setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1200);
       })
       .catch((e) => console.error("[clipboard.writeText] failed:", e));
-  };
-
-  const handleKill = (pid: number) => {
-    invoke("kill_process", { pid })
-      .then(() => {
-        setConfirmKill(null);
-        refreshProcs();
-      })
-      .catch((e) => {
-        console.error("[kill_process] failed:", e);
-        setConfirmKill(null);
-      });
   };
 
   const formatGb = (gb: number) => `${gb.toFixed(1)} GB`;
@@ -151,7 +122,7 @@ export function SysDrawer({ onClose }: { onClose: () => void }) {
               copied={copiedKey === "hostname"}
               t={t}
             />
-            {(sys?.local_ips ?? []).map((ip, i) => (
+            {(sys?.local_ips ?? []).slice(0, MAX_NETWORK_ITEMS).map((ip, i) => (
               <Field
                 key={`ip-${i}`}
                 label={i === 0 ? t("sys.field.local_ip") : ""}
@@ -177,7 +148,7 @@ export function SysDrawer({ onClose }: { onClose: () => void }) {
               t={t}
               dim={publicIp.status !== "ok"}
             />
-            {(sys?.mac_addresses ?? []).map((mac, i) => (
+            {(sys?.mac_addresses ?? []).slice(0, MAX_NETWORK_ITEMS).map((mac, i) => (
               <Field
                 key={`mac-${i}`}
                 label={i === 0 ? t("sys.field.mac") : ""}
@@ -283,40 +254,6 @@ export function SysDrawer({ onClose }: { onClose: () => void }) {
             )}
           </Section>
         </div>
-
-        <div style={{ marginTop: 14 }}>
-          <Section
-            title={t("sys.section.processes")}
-            action={
-              <button
-                onClick={refreshProcs}
-                disabled={procsLoading}
-                title={t("sys.processes.refresh")}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: theme.accent,
-                  cursor: procsLoading ? "wait" : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  padding: 0,
-                }}
-              >
-                <Ic.RefreshCw width={14} height={14} strokeWidth={2} />
-              </button>
-            }
-          >
-            <ProcessTable
-              procs={procs}
-              loading={procsLoading}
-              confirmKill={confirmKill}
-              setConfirmKill={setConfirmKill}
-              onKill={handleKill}
-              theme={theme}
-              t={t}
-            />
-          </Section>
-        </div>
       </div>
     </div>
   );
@@ -391,11 +328,9 @@ function Field({ label, value, copyKey, onCopy, copied, t, dim }: FieldProps) {
 
 function Section({
   title,
-  action,
   children,
 }: {
   title: string;
-  action?: ReactNode;
   children: ReactNode;
 }) {
   const theme = useTheme();
@@ -416,138 +351,11 @@ function Section({
           letterSpacing: "0.08em",
           textTransform: "uppercase",
           marginBottom: 8,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
         }}
       >
-        <span>{title}</span>
-        {action}
+        {title}
       </div>
       {children}
-    </div>
-  );
-}
-
-function ProcessTable({
-  procs,
-  loading,
-  confirmKill,
-  setConfirmKill,
-  onKill,
-  theme,
-  t,
-}: {
-  procs: ProcessInfo[];
-  loading: boolean;
-  confirmKill: number | null;
-  setConfirmKill: (pid: number | null) => void;
-  onKill: (pid: number) => void;
-  theme: ReturnType<typeof useTheme>;
-  t: (key: StringKey, vars?: Record<string, string | number>) => string;
-}) {
-  if (loading && procs.length === 0) {
-    return <div style={{ padding: 8, fontSize: 12, color: C.t3 }}>…</div>;
-  }
-  return (
-    <div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "60px 1fr 60px 80px 60px",
-          fontSize: 10,
-          color: C.t3,
-          fontFamily: theme.fontMono,
-          letterSpacing: "0.06em",
-          padding: "4px 0",
-          borderBottom: `1px solid ${C.border}`,
-          textTransform: "uppercase",
-        }}
-      >
-        <span>{t("sys.processes.pid")}</span>
-        <span>{t("sys.processes.name")}</span>
-        <span style={{ textAlign: "right" }}>{t("sys.processes.cpu")}</span>
-        <span style={{ textAlign: "right" }}>{t("sys.processes.ram")}</span>
-        <span />
-      </div>
-      {procs.map((p) => (
-        <div
-          key={p.pid}
-          style={{
-            display: "grid",
-            gridTemplateColumns: "60px 1fr 60px 80px 60px",
-            fontSize: 11.5,
-            fontFamily: theme.fontMono,
-            color: C.t1,
-            padding: "5px 0",
-            borderBottom: `1px solid ${C.borderDim}`,
-            alignItems: "center",
-          }}
-        >
-          <span style={{ color: C.t3 }}>{p.pid}</span>
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={p.name}>
-            {p.name}
-          </span>
-          <span style={{ textAlign: "right", color: p.cpu_pct > 25 ? "#F87171" : C.t1 }}>
-            {p.cpu_pct.toFixed(1)}
-          </span>
-          <span style={{ textAlign: "right", color: p.mem_mb > 500 ? "#FBBF24" : C.t2 }}>
-            {p.mem_mb} MB
-          </span>
-          <span style={{ display: "flex", justifyContent: "flex-end" }}>
-            {confirmKill === p.pid ? (
-              <span style={{ display: "flex", gap: 4 }}>
-                <button
-                  onClick={() => onKill(p.pid)}
-                  style={{
-                    background: "#EF4444",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 3,
-                    padding: "2px 6px",
-                    fontSize: 10,
-                    cursor: "pointer",
-                  }}
-                >
-                  ✓
-                </button>
-                <button
-                  onClick={() => setConfirmKill(null)}
-                  style={{
-                    background: "transparent",
-                    color: C.t3,
-                    border: `1px solid ${C.border}`,
-                    borderRadius: 3,
-                    padding: "2px 6px",
-                    fontSize: 10,
-                    cursor: "pointer",
-                  }}
-                >
-                  ✕
-                </button>
-              </span>
-            ) : (
-              <button
-                onClick={() => setConfirmKill(p.pid)}
-                title={t("sys.processes.kill")}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: C.t3,
-                  cursor: "pointer",
-                  padding: 2,
-                  display: "flex",
-                  alignItems: "center",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "#EF4444")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = C.t3)}
-              >
-                <Ic.Trash width={13} height={13} strokeWidth={2} />
-              </button>
-            )}
-          </span>
-        </div>
-      ))}
     </div>
   );
 }

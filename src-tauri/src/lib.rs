@@ -49,8 +49,6 @@ pub fn run() {
             system::open_in_paint,
             system::get_system_info,
             system::get_public_ip,
-            system::list_top_processes,
-            system::kill_process,
             // services/app_settings : préférences transverses (langue)
             app_settings::get_app_settings,
             app_settings::set_app_settings,
