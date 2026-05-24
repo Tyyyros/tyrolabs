@@ -1,4 +1,4 @@
-# TyroLabs_V2 — contexte projet
+# TyroLabs — contexte projet
 
 Application desktop Windows : gestionnaire de presse-papiers avancé + module
 Notes (éditeur hybride Rich Text / Markdown). Chaque "outil" est une unité
@@ -30,7 +30,7 @@ un handler Tauri unique côté backend et par un onglet/registre côté frontend
 ## Structure de dossiers
 
 ```
-TyroLabs_V2/
+TyroLabs/
 ├── src/                                 # Frontend React
 │   ├── App.tsx                          # routing onglets + DndContext global
 │   ├── components/
@@ -213,7 +213,7 @@ fichier image dans l'Explorateur). Les bytes encodés sont décodés via
 
 ## État du repo
 
-- Code source local : `C:\Users\lambe\TyroLabs_V2`
+- Code source local : `C:\Users\lambe\TyroLabs`
 - Repo public GitHub : https://github.com/Tyyyros/tyrolabs
 
 ## Règle de synchro (instruction utilisateur)

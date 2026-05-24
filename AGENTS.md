@@ -1,4 +1,4 @@
-# TyroLabs_V2 - project context
+# TyroLabs - project context
 
 TyroLabs is a Windows desktop clipboard manager and notebook. The product
 surface covers clipboard history (text/image/link silos with collections),
@@ -29,7 +29,7 @@ tray.
 ## Current Structure
 
 ```text
-TyroLabs_V2/
+TyroLabs/
 +-- src/
 |   +-- App.tsx
 |   +-- main.tsx
@@ -231,7 +231,7 @@ TyroLabs_V2/
 
 ## Repository
 
-- Local source: `C:\Users\lambe\TyroLabs_V2`
+- Local source: `C:\Users\lambe\TyroLabs`
 - GitHub repository: https://github.com/Tyyyros/tyrolabs
 
 ## Sync Rule
